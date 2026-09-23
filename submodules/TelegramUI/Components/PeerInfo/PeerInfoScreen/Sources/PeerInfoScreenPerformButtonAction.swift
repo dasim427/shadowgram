@@ -1,4 +1,5 @@
 import Foundation
+import AyuGramUI
 import UIKit
 import Display
 import AccountContext
@@ -457,6 +458,20 @@ extension PeerInfoScreenNode {
                         self?.openChatWithMessageSearch()
                     })))
                 }
+                
+                // Shadowgram: export this chat in Telegram Desktop's format
+                let exportPeerId = chatPeer.id
+                items.append(.action(ContextMenuActionItem(text: "Экспорт чата", icon: { theme in
+                    generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Download"), color: theme.contextMenu.primaryColor)
+                }, action: { [weak self] _, f in
+                    f(.dismissWithoutContent)
+                    guard let self else {
+                        return
+                    }
+                    sgExportChat(context: self.context, peerId: exportPeerId, present: { [weak self] c in
+                        self?.controller?.present(c, in: .window(.root))
+                    })
+                })))
                 
                 var hasDiscussion = false
                 if case let .channel(channel) = chatPeer {

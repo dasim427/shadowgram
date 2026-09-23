@@ -155,7 +155,7 @@ func infoItems(
             ))
         }
         
-        if let phone = user.phone {
+        if let phone = (user.id == context.account.peerId ? SGExtrasManager.shared.displayedOwnPhone(user.phone) : user.phone) {
             let formattedPhone = formatPhoneNumber(context: context, number: phone)
             let label: String
             if formattedPhone.hasPrefix("+888 ") {

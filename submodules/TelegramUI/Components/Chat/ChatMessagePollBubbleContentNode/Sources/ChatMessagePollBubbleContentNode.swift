@@ -2953,14 +2953,22 @@ public class ChatMessagePollBubbleContentNode: ChatMessageBubbleContentNode {
                     var optionVoterCount: [Int: Int32] = [:]
                     var maxOptionVoterCount: Int32 = 0
                     var totalVoterCount: Int32 = 0
-                    let voters: [TelegramMediaPollOptionVoters]?
+                    var voters: [TelegramMediaPollOptionVoters]?
                     if isClosed {
                         voters = poll.results.voters ?? []
                     } else {
                         voters = poll.results.voters
                     }
+                    // Shadowgram: results peeked via vote-and-retract stand in until we vote for real
+                    var sgPeekedTotalVoters: Int32?
+                    var isShowingPeekedResults = false
+                    if !(voters?.contains(where: { $0.selected }) ?? false), let peeked = SGExtrasManager.shared.peekedResults(pollId: poll.pollId) {
+                        voters = peeked.voters
+                        sgPeekedTotalVoters = peeked.totalVoters
+                        isShowingPeekedResults = true
+                    }
                     var votedFor = Set<Data>()
-                    if let voters = voters, let totalVoters = poll.results.totalVoters {
+                    if let voters = voters, let totalVoters = sgPeekedTotalVoters ?? poll.results.totalVoters {
                         var didVote = false
                         for voter in voters {
                             if voter.selected {
@@ -2969,7 +2977,7 @@ public class ChatMessagePollBubbleContentNode: ChatMessageBubbleContentNode {
                             }
                         }
                         totalVoterCount = totalVoters
-                        if didVote || isClosed || isPreviewingResults || isRestricted {
+                        if didVote || isClosed || isPreviewingResults || isRestricted || isShowingPeekedResults {
                             for i in 0 ..< poll.options.count {
                                 inner: for optionVoters in voters {
                                     if optionVoters.opaqueIdentifier == poll.options[i].opaqueIdentifier {

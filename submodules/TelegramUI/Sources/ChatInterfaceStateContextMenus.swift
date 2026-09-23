@@ -1708,6 +1708,16 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             }
         }
         
+        // Shadowgram: see an anonymous poll's results without leaving a vote
+        if let activePoll = activePoll, SGExtrasManager.shared.canPeekResults(poll: activePoll) {
+            actions.append(.action(ContextMenuActionItem(text: "Подсмотреть результаты", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Statistics"), color: theme.actionSheet.primaryTextColor)
+            }, action: { _, f in
+                let _ = context.engine.messages.sgPeekPollResults(messageId: messages[0].id, poll: activePoll).startStandalone()
+                f(.default)
+            })))
+        }
+        
         if let activeTodo {
             var maxTodoItemsCount: Int = 30
             if let data = context.currentAppConfiguration.with({ $0 }).data {

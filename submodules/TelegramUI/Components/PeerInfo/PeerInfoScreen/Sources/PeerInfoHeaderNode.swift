@@ -1222,7 +1222,7 @@ final class PeerInfoHeaderNode: ASDisplayNode {
                 title = "" //"\u{00A0}"
             }
             if title.isEmpty {
-                if case let .user(user) = peer, let phone = user.phone {
+                if case let .user(user) = peer, let phone = (user.id == self.context.account.peerId ? SGExtrasManager.shared.displayedOwnPhone(user.phone) : user.phone) {
                     title = formatPhoneNumber(context: self.context, number: phone)
                 } else if let addressName = peer.addressName {
                     title = "@\(addressName)"
@@ -1236,7 +1236,7 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             smallTitleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white, shadowColor: titleShadowColor)
             
             if self.isSettings, case let .user(user) = peer {
-                var subtitle = formatPhoneNumber(context: self.context, number: user.phone ?? "")
+                var subtitle = formatPhoneNumber(context: self.context, number: SGExtrasManager.shared.displayedOwnPhone(user.phone) ?? "")
                 
                 if let mainUsername = user.addressName, !mainUsername.isEmpty {
                     subtitle = "\(subtitle) • @\(mainUsername)"

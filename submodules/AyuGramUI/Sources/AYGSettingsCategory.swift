@@ -14,6 +14,7 @@ public enum AYGSettingsCategory: Int, CaseIterable {
     case spy
     case filters
     case customization
+    case shadowgram
 
     public var title: String {
         switch self {
@@ -21,6 +22,7 @@ public enum AYGSettingsCategory: Int, CaseIterable {
         case .spy: return aygString("CategorySpy")
         case .filters: return aygString("CategoryFilters")
         case .customization: return aygString("CategoryCustomization")
+        case .shadowgram: return "Shadowgram"
         }
     }
 
@@ -32,6 +34,7 @@ public enum AYGSettingsCategory: Int, CaseIterable {
         case .spy: return "AyuGram/AYGSpy"
         case .filters: return "AyuGram/AYGFilters"
         case .customization: return "AyuGram/AYGCustomization"
+        case .shadowgram: return "AyuGram/AYGSpy"
         }
     }
 

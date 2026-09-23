@@ -90,7 +90,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
                 interaction.openSettings(.premiumManagement)
             }))
         } else if settings.suggestPhoneNumberConfirmation, case let .user(peer) = data.peer {
-            let phoneNumber = formatPhoneNumber(context: context, number: peer.phone ?? "")
+            let phoneNumber = formatPhoneNumber(context: context, number: SGExtrasManager.shared.displayedOwnPhone(peer.phone) ?? "")
             items[.phone]!.append(PeerInfoScreenInfoItem(id: 0, title: presentationData.strings.Settings_CheckPhoneNumberTitle(phoneNumber).string, text: .markdown(presentationData.strings.Settings_CheckPhoneNumberText), linkAction: { link in
                 if case .tap = link {
                     interaction.openFaq(presentationData.strings.Settings_CheckPhoneNumberFAQAnchor)
@@ -453,7 +453,7 @@ func settingsEditingItems(data: PeerInfoScreenData?, state: PeerInfoState, conte
     }
     
     if case let .user(user) = data.peer {
-        items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPhoneNumber, label: .text(user.phone.flatMap({ formatPhoneNumber(context: context, number: $0) }) ?? ""), text: presentationData.strings.Settings_PhoneNumber, icon: PresentationResourcesSettings.recentCalls, action: {
+        items[.info]!.append(PeerInfoScreenDisclosureItem(id: ItemPhoneNumber, label: .text(SGExtrasManager.shared.displayedOwnPhone(user.phone).flatMap({ formatPhoneNumber(context: context, number: $0) }) ?? ""), text: presentationData.strings.Settings_PhoneNumber, icon: PresentationResourcesSettings.recentCalls, action: {
             interaction.openSettings(.phoneNumber)
         }))
     }
