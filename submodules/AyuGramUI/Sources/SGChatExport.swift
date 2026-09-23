@@ -10,8 +10,8 @@ import UndoUI
 
 // Shadowgram: exports one chat the way Telegram Desktop's "Export chat history" does —
 // result.json in the same schema plus a readable messages.html — and hands both files
-// to the system share sheet. Media files are not downloaded; they are listed with the
-// same placeholder Telegram Desktop writes when media export is switched off.
+// to the system share sheet. Media is optional: when included it is downloaded into the
+// same folders Telegram Desktop uses, otherwise listed with its "File not included" placeholder.
 
 private let sgExportMaxMessages = 50000
 private let sgFileNotIncluded = "(File not included. Change data exporting settings to download.)"
@@ -162,7 +162,7 @@ private struct SGExportedMessage {
     let html: String
 }
 
-private func sgExportMessage(_ message: Message) -> SGExportedMessage {
+private func sgExportMessage(_ message: Message, mediaPath: String?) -> SGExportedMessage {
     var json: [String: Any] = [:]
     json["id"] = Int(message.id.id)
 
@@ -172,14 +172,17 @@ private func sgExportMessage(_ message: Message) -> SGExportedMessage {
         if media is TelegramMediaAction {
             isService = true
         } else if let image = media as? TelegramMediaImage {
-            json["photo"] = sgFileNotIncluded
+            json["photo"] = mediaPath ?? sgFileNotIncluded
             if let largest = image.representations.last {
                 json["width"] = Int(largest.dimensions.width)
                 json["height"] = Int(largest.dimensions.height)
             }
             mediaDescription = "Фото"
         } else if let file = media as? TelegramMediaFile {
-            json["file"] = sgFileNotIncluded
+            json["file"] = mediaPath ?? sgFileNotIncluded
+            if let fileName = file.fileName {
+                json["file_name"] = fileName
+            }
             json["mime_type"] = file.mimeType
             if file.isInstantVideo {
                 json["media_type"] = "video_message"
@@ -261,7 +264,13 @@ private func sgExportMessage(_ message: Message) -> SGExportedMessage {
         html += "<div class=\"reply\"><a href=\"#message\(replyTo)\">В ответ на сообщение</a></div>"
     }
     if let mediaDescription = mediaDescription {
-        html += "<div class=\"media\">[\(mediaDescription)]</div>"
+        if let mediaPath = mediaPath, json["photo"] != nil {
+            html += "<div class=\"media\"><a href=\"\(mediaPath)\"><img src=\"\(mediaPath)\"></a></div>"
+        } else if let mediaPath = mediaPath {
+            html += "<div class=\"media\"><a href=\"\(mediaPath)\">[\(mediaDescription)]</a></div>"
+        } else {
+            html += "<div class=\"media\">[\(mediaDescription)]</div>"
+        }
     }
     if !message.text.isEmpty {
         html += "<div class=\"text\">\(sgHtmlEscape(message.text))</div>"
@@ -292,9 +301,116 @@ private func sgLoadAllMessages(engine: TelegramEngine, peerId: PeerId, state: Se
     }
 }
 
-private func sgWriteExport(chatPeer: Peer, accountPeerId: PeerId, messages: [Message]) -> [URL]? {
+private let sgExportMaxFileSize: Int64 = 50 * 1024 * 1024
+
+private struct SGMediaTask {
+    let messageId: MessageId
+    let resource: MediaResource
+    let reference: MediaResourceReference
+    let contentType: MediaResourceUserContentType
+    let relativePath: String
+}
+
+/// Picks the file Telegram Desktop would export for this message, laid out in the same
+/// folders (photos/, files/, voice_messages/, round_video_messages/, video_files/).
+private func sgMediaTask(for message: Message) -> SGMediaTask? {
+    let messageReference = MessageReference(message)
+    for media in message.media {
+        if let image = media as? TelegramMediaImage, let representation = largestImageRepresentation(image.representations) {
+            let reference = AnyMediaReference.message(message: messageReference, media: image).resourceReference(representation.resource)
+            return SGMediaTask(messageId: message.id, resource: representation.resource, reference: reference, contentType: .image, relativePath: "photos/photo_\(message.id.id).jpg")
+        } else if let file = media as? TelegramMediaFile {
+            if file.isSticker || file.isAnimated {
+                return nil
+            }
+            if let size = file.size, size > sgExportMaxFileSize {
+                return nil
+            }
+            let folder: String
+            let defaultName: String
+            if file.isInstantVideo {
+                folder = "round_video_messages"
+                defaultName = "file_\(message.id.id).mp4"
+            } else if file.isVoice {
+                folder = "voice_messages"
+                defaultName = "audio_\(message.id.id).ogg"
+            } else if file.isVideo {
+                folder = "video_files"
+                defaultName = "video_\(message.id.id).mp4"
+            } else {
+                folder = "files"
+                defaultName = "file_\(message.id.id)"
+            }
+            var name = defaultName
+            if let fileName = file.fileName, !fileName.isEmpty {
+                let safe = fileName.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+                name = "\(message.id.id)_\(safe)"
+            }
+            let reference = AnyMediaReference.message(message: messageReference, media: file).resourceReference(file.resource)
+            return SGMediaTask(messageId: message.id, resource: file.resource, reference: reference, contentType: MediaResourceUserContentType(file: file), relativePath: "\(folder)/\(name)")
+        }
+    }
+    return nil
+}
+
+private func sgDownloadMedia(context: AccountContext, peerId: PeerId, task: SGMediaTask, folder: URL) -> Signal<Bool, NoError> {
+    let mediaBox = context.account.postbox.mediaBox
+    let destination = folder.appendingPathComponent(task.relativePath)
+    let download = Signal<Bool, NoError> { subscriber in
+        let fetch = fetchedMediaResource(mediaBox: mediaBox, userLocation: .peer(peerId), userContentType: task.contentType, reference: task.reference).start()
+        let data = (mediaBox.resourceData(task.resource)
+        |> filter { $0.complete }
+        |> take(1)).start(next: { data in
+            do {
+                try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.copyItem(atPath: data.path, toPath: destination.path)
+                subscriber.putNext(true)
+            } catch {
+                subscriber.putNext(false)
+            }
+            subscriber.putCompletion()
+        })
+        return ActionDisposable {
+            fetch.dispose()
+            data.dispose()
+        }
+    }
+    return download
+    |> timeout(120.0, queue: Queue.concurrentDefaultQueue(), alternate: .single(false))
+}
+
+private func sgDownloadAllMedia(context: AccountContext, peerId: PeerId, tasks: [SGMediaTask], index: Int, folder: URL, done: [MessageId: String]) -> Signal<[MessageId: String], NoError> {
+    if index >= tasks.count {
+        return .single(done)
+    }
+    let task = tasks[index]
+    return sgDownloadMedia(context: context, peerId: peerId, task: task, folder: folder)
+    |> mapToSignal { success -> Signal<[MessageId: String], NoError> in
+        var updated = done
+        if success {
+            updated[task.messageId] = task.relativePath
+        }
+        return sgDownloadAllMedia(context: context, peerId: peerId, tasks: tasks, index: index + 1, folder: folder, done: updated)
+    }
+}
+
+private func sgMakeExportFolder() -> URL? {
+    let folderName = "ChatExport_\(sgExportDateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-"))"
+    let folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(folderName, isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    } catch {
+        return nil
+    }
+}
+
+private func sgWriteExport(chatPeer: Peer, accountPeerId: PeerId, messages: [Message], mediaPaths: [MessageId: String], folder: URL) -> Bool {
     let sorted = messages.sorted(by: { $0.id.id < $1.id.id })
-    let exported = sorted.map(sgExportMessage)
+    let exported = sorted.map { sgExportMessage($0, mediaPath: mediaPaths[$0.id]) }
 
     let chatName = sgPeerName(chatPeer)
     let root: [String: Any] = [
@@ -304,63 +420,95 @@ private func sgWriteExport(chatPeer: Peer, accountPeerId: PeerId, messages: [Mes
         "messages": exported.map { $0.json }
     ]
 
-    let folderName = "ChatExport_\(sgExportDateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-"))"
-    let folder = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(folderName, isDirectory: true)
     do {
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let jsonData = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-        let jsonURL = folder.appendingPathComponent("result.json")
-        try jsonData.write(to: jsonURL)
+        try jsonData.write(to: folder.appendingPathComponent("result.json"))
 
         var html = "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>\(sgHtmlEscape(chatName))</title><style>"
         html += "body{font-family:-apple-system,Helvetica,Arial,sans-serif;background:#e7ebf0;margin:0;padding:16px}"
         html += "h1{font-size:20px}.message{background:#fff;border-radius:10px;padding:8px 12px;margin:6px 0;max-width:720px}"
         html += ".meta{font-size:13px;color:#70777b;margin-bottom:4px}.from{color:#3892db;font-weight:600}"
-        html += ".media,.forwarded,.reply{font-size:13px;color:#70777b}.text{font-size:15px;white-space:normal;word-wrap:break-word}.service{color:#70777b;font-style:italic}"
+        html += ".media,.forwarded,.reply{font-size:13px;color:#70777b}.media img{max-width:320px;max-height:320px;border-radius:6px}"
+        html += ".text{font-size:15px;white-space:normal;word-wrap:break-word}.service{color:#70777b;font-style:italic}"
         html += "</style></head><body><h1>\(sgHtmlEscape(chatName))</h1>\n"
         for item in exported {
             html += item.html
         }
         html += "</body></html>"
-        let htmlURL = folder.appendingPathComponent("messages.html")
-        try html.data(using: .utf8)?.write(to: htmlURL)
-        return [jsonURL, htmlURL]
+        try html.data(using: .utf8)?.write(to: folder.appendingPathComponent("messages.html"))
+        return true
     } catch {
-        return nil
+        return false
     }
 }
 
-/// Exports the chat with `peerId` and presents the share sheet with the result.
-public func sgExportChat(context: AccountContext, peerId: PeerId, present: @escaping (ViewController) -> Void) {
-    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+private func sgRunExport(context: AccountContext, peerId: PeerId, includeMedia: Bool, showInfo: @escaping (String) -> Void) {
     let accountPeerId = context.account.peerId
-
-    let showInfo: (String) -> Void = { text in
-        present(UndoOverlayController(presentationData: presentationData, content: .info(title: nil, text: text, timeout: nil, customUndoText: nil), elevatedLayout: false, animateInAsReplacement: true, action: { _ in return false }))
+    guard let folder = sgMakeExportFolder() else {
+        showInfo("Не удалось экспортировать чат.")
+        return
     }
-    showInfo("Экспорт чата… Это может занять время для больших чатов.")
+    showInfo(includeMedia ? "Экспорт чата с медиа… Это может занять несколько минут." : "Экспорт чата… Это может занять время для больших чатов.")
 
     let _ = (context.engine.data.get(TelegramEngine.EngineData.Item.Peer.Peer(id: peerId))
-    |> mapToSignal { peer -> Signal<(EnginePeer?, [Message]), NoError> in
+    |> mapToSignal { peer -> Signal<(EnginePeer?, [Message], [MessageId: String]), NoError> in
         return sgLoadAllMessages(engine: context.engine, peerId: peerId, state: nil, collected: [], progress: { _ in })
-        |> map { messages in
-            return (peer, messages)
+        |> mapToSignal { messages -> Signal<(EnginePeer?, [Message], [MessageId: String]), NoError> in
+            if !includeMedia {
+                return .single((peer, messages, [:]))
+            }
+            let tasks = messages.sorted(by: { $0.id.id < $1.id.id }).compactMap { sgMediaTask(for: $0) }
+            return sgDownloadAllMedia(context: context, peerId: peerId, tasks: tasks, index: 0, folder: folder, done: [:])
+            |> map { mediaPaths -> (EnginePeer?, [Message], [MessageId: String]) in
+                return (peer, messages, mediaPaths)
+            }
         }
     }
     |> deliverOn(Queue.concurrentDefaultQueue())
-    |> map { peer, messages -> (Int, [URL]?) in
+    |> map { peer, messages, mediaPaths -> (Int, Int, Bool) in
         guard let peer = peer else {
-            return (0, nil)
+            return (0, 0, false)
         }
-        return (messages.count, sgWriteExport(chatPeer: peer._asPeer(), accountPeerId: accountPeerId, messages: messages))
+        let success = sgWriteExport(chatPeer: peer._asPeer(), accountPeerId: accountPeerId, messages: messages, mediaPaths: mediaPaths, folder: folder)
+        return (messages.count, mediaPaths.count, success)
     }
-    |> deliverOnMainQueue).startStandalone(next: { count, urls in
-        guard let urls = urls else {
+    |> deliverOnMainQueue).startStandalone(next: { count, mediaCount, success in
+        guard success else {
             showInfo("Не удалось экспортировать чат.")
             return
         }
-        showInfo("Готово: \(count) сообщений.")
-        let activityController = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+        showInfo(includeMedia ? "Готово: \(count) сообщений, \(mediaCount) файлов." : "Готово: \(count) сообщений.")
+        let activityController = UIActivityViewController(activityItems: [folder], applicationActivities: nil)
         context.sharedContext.applicationBindings.presentNativeController(activityController)
     })
+}
+
+/// Asks whether to include media, exports the chat with `peerId` and presents the share
+/// sheet with the export folder.
+public func sgExportChat(context: AccountContext, peerId: PeerId, present: @escaping (ViewController) -> Void) {
+    let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+    let showInfo: (String) -> Void = { text in
+        present(UndoOverlayController(presentationData: presentationData, content: .info(title: nil, text: text, timeout: nil, customUndoText: nil), elevatedLayout: false, animateInAsReplacement: true, action: { _ in return false }))
+    }
+
+    let actionSheet = ActionSheetController(presentationData: presentationData)
+    actionSheet.setItemGroups([
+        ActionSheetItemGroup(items: [
+            ActionSheetTextItem(title: "Экспорт в формате Telegram Desktop (result.json + messages.html)"),
+            ActionSheetButtonItem(title: "Только текст", action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+                sgRunExport(context: context, peerId: peerId, includeMedia: false, showInfo: showInfo)
+            }),
+            ActionSheetButtonItem(title: "С медиа (файлы до 50 МБ)", action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+                sgRunExport(context: context, peerId: peerId, includeMedia: true, showInfo: showInfo)
+            })
+        ]),
+        ActionSheetItemGroup(items: [
+            ActionSheetButtonItem(title: presentationData.strings.Common_Cancel, color: .accent, font: .bold, action: { [weak actionSheet] in
+                actionSheet?.dismissAnimated()
+            })
+        ])
+    ])
+    present(actionSheet)
 }
