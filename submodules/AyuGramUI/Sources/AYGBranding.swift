@@ -3,7 +3,7 @@ import TelegramCore
 
 // AYG: user-visible name of the fork. Single source of truth for every place
 // the app names itself in the UI.
-public let aygAppName: String = "AyuGram"
+public let aygAppName: String = "Shadowgram"
 
 // AYG: title of the Settings row that opens the AyuGram screen, and of that
 // screen's navigation bar. `AyuPreferences` is what Android calls the same screen.

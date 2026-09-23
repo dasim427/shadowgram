@@ -529,7 +529,8 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         
         let baseAppBundleId = Bundle.main.bundleIdentifier!
         let appGroupName = "group.\(baseAppBundleId)"
-        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName)
+        // Sideloaded builds may be re-signed without a matching App Group; fall back to the app's own Documents
+        let maybeAppGroupUrl = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         
         let buildConfig = BuildConfig(baseAppBundleId: baseAppBundleId)
         self.buildConfig = buildConfig
@@ -947,10 +948,15 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         }, dismissNativeController: {
             self.window?.rootViewController?.dismiss(animated: true, completion: nil)
         }, getAvailableAlternateIcons: {
-            // AYG: the picker offers AyuGram and nothing else. `isDefault` makes
-            // selecting it call setAlternateIconName(nil), i.e. the primary icon.
+            // Shadowgram: ShadowDark mirrors the primary icon; `isDefault` makes selecting it
+            // call setAlternateIconName(nil).
             return [
-                PresentationAppIcon(name: "AYGIcon", imageName: "AYGIcon", isDefault: true)
+                PresentationAppIcon(name: "ShadowDark", imageName: "ShadowDark", isDefault: true),
+                PresentationAppIcon(name: "ShadowViolet", imageName: "ShadowViolet"),
+                PresentationAppIcon(name: "ShadowBlue", imageName: "ShadowBlue"),
+                PresentationAppIcon(name: "ShadowLight", imageName: "ShadowLight"),
+                PresentationAppIcon(name: "ShadowBlack", imageName: "ShadowBlack"),
+                PresentationAppIcon(name: "ShadowRed", imageName: "ShadowRed")
             ]
         }, getAlternateIconName: {
             if #available(iOS 10.3, *) {

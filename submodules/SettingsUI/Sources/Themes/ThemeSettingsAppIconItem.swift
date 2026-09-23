@@ -382,6 +382,18 @@ class ThemeSettingsAppIconItemNode: ListViewItemNode, ItemListItemNode {
                                 case "AYGIcon":
                                     name = aygAppName
                                     bordered = false
+                                case "ShadowDark":
+                                    name = "Shadow"
+                                case "ShadowViolet":
+                                    name = "Violet"
+                                case "ShadowBlue":
+                                    name = "Blue"
+                                case "ShadowLight":
+                                    name = "Light"
+                                case "ShadowBlack":
+                                    name = "Black"
+                                case "ShadowRed":
+                                    name = "Red"
                                 case "BlueIcon":
                                     name = item.strings.Appearance_AppIconDefault
                                 case "BlackIcon":

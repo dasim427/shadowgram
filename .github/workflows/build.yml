@@ -1,109 +1,125 @@
-name: CI
+name: Build IPA
 
 on:
-  push:
-    branches: [ master ]
-
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-13
+    runs-on: macos-26
+    timeout-minutes: 360
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Check secrets
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          if [ -z "$TG_API_ID" ] || [ -z "$TG_API_HASH" ]; then
+            echo "::error::Add TG_API_ID and TG_API_HASH repository secrets (get them at https://my.telegram.org/apps)"
+            exit 1
+          fi
+
+      - name: Free disk space
+        run: |
+          df -h /
+          # Keep only the Xcode version the project needs
+          XCODE_VERSION=26.2
+          for x in /Applications/Xcode_*.app; do
+            case "$x" in
+              /Applications/Xcode_${XCODE_VERSION}.app|/Applications/Xcode_${XCODE_VERSION}.0.app) ;;
+              *) [ -L "$x" ] || sudo rm -rf "$x" ;;
+            esac
+          done
+          sudo rm -rf ~/Library/Android /usr/local/share/dotnet ~/.dotnet /usr/local/lib/node_modules || true
+          df -h /
+
+      - uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
-          fetch-depth: '0'
+          submodules: recursive
+          fetch-depth: 0
 
-      - name: Set active Xcode path
+      - name: Select Xcode
         run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          XCODE_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["xcode"])')
+          sudo xcode-select -s /Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer
+          # Some third-party build scripts (dav1d) hardcode /Applications/Xcode.app
+          sudo rm -rf /Applications/Xcode.app
+          sudo ln -s /Applications/Xcode_${XCODE_VERSION}.app /Applications/Xcode.app
+          ls /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/
+          xcodebuild -version
 
-      - name: Create canonical source directory
+      - name: Restore Bazel cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/telegram-bazel-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('versions.json') }}-${{ github.sha }}
+          restore-keys: bazel-${{ runner.os }}-${{ hashFiles('versions.json') }}-
+
+      - name: Create build configuration
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+        run: |
+          # bundle_id and team_id must match the fake provisioning profiles;
+          # Sideloadly replaces them when signing with your Apple ID.
+          python3 - <<'EOF'
+          import json, os
+          cfg = json.load(open("build-system/appstore-configuration.json"))
+          cfg["api_id"] = os.environ["TG_API_ID"].strip()
+          cfg["api_hash"] = os.environ["TG_API_HASH"].strip()
+          cfg["enable_siri"] = False
+          cfg["enable_icloud"] = False
+          # Swiftgram 12.9+ requires this key; empty = default Swiftgram config
+          cfg.setdefault("sg_config", "")
+          json.dump(cfg, open(os.path.expanduser("~/build-configuration.json"), "w"), indent=2)
+          EOF
+
+      - name: Build
         run: |
           set -x
-          sudo mkdir -p /Users/Shared
-          cp -R $GITHUB_WORKSPACE /Users/Shared/
-          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
+          BUILD_NUMBER=$(( $(git rev-list --count HEAD) + $(cat build_number_offset) ))
+          APP_VERSION=$(python3 -c 'import json;print(json.load(open("versions.json"))["app"])')
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
 
-      - name: Build the App
-        run: |
-          set -x
-
-          # source code paths are included in the final binary, so we need to make them stable across builds
-          SOURCE_DIR=/Users/Shared/telegram-ios
-
-          # use canonical bazel root
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
-
-          cd $SOURCE_DIR
-
-          BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
-
-          export APP_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["app"]);')
-          export COMMIT_COUNT=$(git rev-list --count HEAD)
-          export COMMIT_COUNT="$(($COMMIT_COUNT+$BUILD_NUMBER_OFFSET))"
-          export BUILD_NUMBER="$COMMIT_COUNT"
-          echo "BUILD_NUMBER=$(echo $BUILD_NUMBER)" >> $GITHUB_ENV
-          echo "APP_VERSION=$(echo $APP_VERSION)" >> $GITHUB_ENV
-
+          # The self-signed fake certificate isn't a "valid" identity on macOS 26,
+          # so sign ad-hoc instead; Sideloadly re-signs with the user's Apple ID anyway.
+          echo 'build --ios_signing_cert_name=-' >> .bazelrc
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
+            --cacheDir="$HOME/telegram-bazel-cache" \
             build \
-            --configurationPath="build-system/appstore-configuration.json" \
+            --configurationPath="$HOME/build-configuration.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber="$BUILD_NUMBER"
+            --buildNumber="$BUILD_NUMBER" \
+            --outputBuildArtifactsPath=build/artifacts
 
-          # collect ipa
-          OUTPUT_PATH="build/artifacts"
-          rm -rf "$OUTPUT_PATH"
-          mkdir -p "$OUTPUT_PATH"
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa; do
-            cp "$f" $OUTPUT_PATH/
-          done
+      - name: Make lite IPA (for free Apple ID)
+        run: |
+          # A free Apple ID allows only 10 App IDs per week; the full app has ~9 extensions.
+          # The lite build drops extensions and the Watch app so it fits.
+          cd build/artifacts
+          rm -rf lite && mkdir lite && cd lite
+          unzip -q ../Telegram.ipa
+          rm -rf Payload/*.app/PlugIns Payload/*.app/Watch Payload/*.app/Extensions
+          zip -qry ../Shadowgram-lite.ipa Payload
+          cd .. && rm -rf lite
+          mv Telegram.ipa Shadowgram-full.ipa
+          ls -lh
 
-          # collect dsym
-          mkdir -p build/DSYMs
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/*.dSYM; do
-            cp -R "$f" build/DSYMs/
-          done
-          zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: build-${{ env.BUILD_NUMBER }}
-          release_name: Telegram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          body: |
-            An unsigned build of Telegram for iOS ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          draft: false
-          prerelease: false
+          name: Shadowgram-${{ env.APP_VERSION }}-${{ env.BUILD_NUMBER }}
+          path: |
+            build/artifacts/Shadowgram-lite.ipa
+            build/artifacts/Shadowgram-full.ipa
+          retention-days: 30
 
-      - name: Upload Release IPA
-        id: upload-release-ipa 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Save Bazel cache
+        if: always()
+        uses: actions/cache/save@v4
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
-          asset_name: Telegram.ipa
-          asset_content_type: application/zip
-
-      - name: Upload Release DSYM
-        id: upload-release-dsym 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
-          asset_name: Telegram.DSYMs.zip
-          asset_content_type: application/zip
+          path: ~/telegram-bazel-cache
+          key: bazel-${{ runner.os }}-${{ hashFiles('versions.json') }}-${{ github.sha }}
