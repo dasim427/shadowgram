@@ -351,48 +351,53 @@ extension ChatControllerImpl {
                             strongSelf.recorderDataDisposable.set(nil)
                         } else {
                             let randomId = Int64.random(in: Int64.min ... Int64.max)
-                            
-                            let resource = LocalFileMediaResource(fileId: randomId)
-                            strongSelf.context.engine.resources.storeResourceData(id: EngineMediaResource.Id(resource.id), data: data.compressedData)
-                            
+                            let originalData = data.compressedData
+                            let duration = data.duration
                             let waveformBuffer: Data? = data.waveform
                             
-                            let correlationId = Int64.random(in: 0 ..< Int64.max)
-                            var usedCorrelationId = false
+                            // GHOSTGRAM: Check if Voice Morpher needs processing
+                            let needsProcessing = VoiceMorpherManager.shared.isEnabled && VoiceMorpherManager.shared.selectedPreset != .disabled
                             
-                            var shouldAnimateMessageTransition = strongSelf.chatDisplayNode.shouldAnimateMessageTransition
-                            if strongSelf.chatLocation.threadId == nil, let channel = strongSelf.presentationInterfaceState.renderedPeer?.peer as? TelegramChannel, channel.isMonoForum, let linkedMonoforumId = channel.linkedMonoforumId, let mainChannel = strongSelf.presentationInterfaceState.renderedPeer?.peers[linkedMonoforumId] as? TelegramChannel, mainChannel.hasPermission(.manageDirect) {
-                                shouldAnimateMessageTransition = false
-                            }
-                            
-                            if shouldAnimateMessageTransition, let textInputPanelNode = strongSelf.chatDisplayNode.textInputPanelNode, let micButton = textInputPanelNode.micButton {
-                                usedCorrelationId = true
-                                strongSelf.chatDisplayNode.messageTransitionNode.add(correlationId: correlationId, source: .audioMicInput(ChatMessageTransitionNodeImpl.Source.AudioMicInput(micButton: micButton)), initiated: {
-                                    guard let strongSelf = self else {
-                                        return
+                            if needsProcessing {
+                                // Show processing indicator
+                                let statusController = OverlayStatusController(theme: strongSelf.presentationData.theme, type: .loading(cancelled: nil))
+                                statusController.statusBar.statusBarStyle = strongSelf.presentationData.theme.rootController.statusBarStyle.style
+                                strongSelf.present(statusController, in: .window(.root))
+                                
+                                // Process async
+                                VoiceMorpherEngine.shared.processOggData(originalData) { [weak self, weak statusController] result in
+                                    DispatchQueue.main.async {
+                                        statusController?.dismiss()
+                                        
+                                        guard let strongSelf = self else { return }
+                                        
+                                        let processedData: Data
+                                        switch result {
+                                        case .success(let data):
+                                            processedData = data
+                                        case .failure:
+                                            processedData = originalData // fallback to original on error
+                                        }
+                                        
+                                        strongSelf.finishSendingVoiceMessage(
+                                            randomId: randomId,
+                                            processedData: processedData,
+                                            duration: duration,
+                                            waveformBuffer: waveformBuffer,
+                                            viewOnce: viewOnce
+                                        )
                                     }
-                                    strongSelf.audioRecorder.set(.single(nil))
-                                })
-                            } else {
-                                strongSelf.audioRecorder.set(.single(nil))
-                            }
-                            
-                            strongSelf.chatDisplayNode.setupSendActionOnViewUpdate({
-                                if let strongSelf = self {
-                                    strongSelf.chatDisplayNode.collapseInput()
-                                    
-                                    strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: false, {
-                                        $0.updatedInterfaceState { $0.withUpdatedReplyMessageSubject(nil).withUpdatedSendMessageEffect(nil).withUpdatedPostSuggestionState(nil) }
-                                    })
                                 }
-                            }, usedCorrelationId ? correlationId : nil)
-                            
-                            var attributes: [EngineMessage.Attribute] = []
-                            if viewOnce {
-                                attributes.append(AutoremoveTimeoutMessageAttribute(timeout: viewOnceTimeout, countdownBeginTime: nil))
+                            } else {
+                                // No processing needed, send directly
+                                strongSelf.finishSendingVoiceMessage(
+                                    randomId: randomId,
+                                    processedData: originalData,
+                                    duration: duration,
+                                    waveformBuffer: waveformBuffer,
+                                    viewOnce: viewOnce
+                                )
                             }
-                            
-                            strongSelf.sendMessages([.message(text: "", attributes: attributes, inlineStickers: [:], mediaReference: .standalone(media: TelegramMediaFile(fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: randomId), partialReference: nil, resource: resource, previewRepresentations: [], videoThumbnails: [], immediateThumbnailData: nil, mimeType: "audio/ogg", size: Int64(data.compressedData.count), attributes: [.Audio(isVoice: true, duration: Int(data.duration), title: nil, performer: nil, waveform: waveformBuffer)], alternativeRepresentations: [])), threadId: strongSelf.chatLocation.threadId, replyToMessageId: strongSelf.presentationInterfaceState.interfaceState.replyMessageSubject?.subjectModel, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: [])])
                             
                             strongSelf.recorderFeedback?.tap()
                             strongSelf.recorderFeedback = nil
@@ -771,5 +776,51 @@ extension ChatControllerImpl {
             }
             videoRecorderValue.sendVideoRecording(silentPosting: silentPosting, scheduleTime: scheduleTime, repeatPeriod: repeatPeriod, messageEffect: messageEffect)
         }
+    }
+    
+    // MARK: - GHOSTGRAM: Voice Morpher Helper
+    
+    private func finishSendingVoiceMessage(
+        randomId: Int64,
+        processedData: Data,
+        duration: Double,
+        waveformBuffer: Data?,
+        viewOnce: Bool
+    ) {
+        let resource = LocalFileMediaResource(fileId: randomId)
+        self.context.engine.resources.storeResourceData(id: EngineMediaResource.Id(resource.id), data: processedData)
+        
+        let correlationId = Int64.random(in: 0 ..< Int64.max)
+        var usedCorrelationId = false
+        
+        var shouldAnimateMessageTransition = self.chatDisplayNode.shouldAnimateMessageTransition
+        if self.chatLocation.threadId == nil, let channel = self.presentationInterfaceState.renderedPeer?.peer as? TelegramChannel, channel.isMonoForum, let linkedMonoforumId = channel.linkedMonoforumId, let mainChannel = self.presentationInterfaceState.renderedPeer?.peers[linkedMonoforumId] as? TelegramChannel, mainChannel.hasPermission(.manageDirect) {
+            shouldAnimateMessageTransition = false
+        }
+        
+        if shouldAnimateMessageTransition, let textInputPanelNode = self.chatDisplayNode.textInputPanelNode, let micButton = textInputPanelNode.micButton {
+            usedCorrelationId = true
+            self.chatDisplayNode.messageTransitionNode.add(correlationId: correlationId, source: .audioMicInput(ChatMessageTransitionNodeImpl.Source.AudioMicInput(micButton: micButton)), initiated: { [weak self] in
+                self?.audioRecorder.set(.single(nil))
+            })
+        } else {
+            self.audioRecorder.set(.single(nil))
+        }
+        
+        self.chatDisplayNode.setupSendActionOnViewUpdate({ [weak self] in
+            if let strongSelf = self {
+                strongSelf.chatDisplayNode.collapseInput()
+                strongSelf.updateChatPresentationInterfaceState(animated: true, interactive: false, {
+                    $0.updatedInterfaceState { $0.withUpdatedReplyMessageSubject(nil).withUpdatedSendMessageEffect(nil).withUpdatedPostSuggestionState(nil) }
+                })
+            }
+        }, usedCorrelationId ? correlationId : nil)
+        
+        var attributes: [EngineMessage.Attribute] = []
+        if viewOnce {
+            attributes.append(AutoremoveTimeoutMessageAttribute(timeout: viewOnceTimeout, countdownBeginTime: nil))
+        }
+        
+        self.sendMessages([.message(text: "", attributes: attributes, inlineStickers: [:], mediaReference: .standalone(media: TelegramMediaFile(fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: randomId), partialReference: nil, resource: resource, previewRepresentations: [], videoThumbnails: [], immediateThumbnailData: nil, mimeType: "audio/ogg", size: Int64(processedData.count), attributes: [.Audio(isVoice: true, duration: Int(duration), title: nil, performer: nil, waveform: waveformBuffer)], alternativeRepresentations: [])), threadId: self.chatLocation.threadId, replyToMessageId: self.presentationInterfaceState.interfaceState.replyMessageSubject?.subjectModel, replyToStoryId: nil, localGroupingKey: nil, correlationId: correlationId, bubbleUpEmojiOrStickersets: [])])
     }
 }

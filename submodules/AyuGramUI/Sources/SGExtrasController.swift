@@ -6,6 +6,7 @@ import TelegramCore
 import TelegramPresentationData
 import ItemListUI
 import AccountContext
+import TelegramUIPreferences
 
 // Shadowgram: settings for the features Shadowgram adds on top of AyuGram.
 
@@ -13,9 +14,15 @@ private enum SGExtrasSection: Int32 {
     case fakePhone
     case polls
     case export
+    case tools
 }
 
 private enum SGExtrasEntry: ItemListNodeEntry {
+    case toolsHeader(String)
+    case voiceMorpher(String, String)
+    case deviceSpoof(String, String)
+    case shadowTheme(String)
+    case shadowThemeInfo(String)
     case fakePhoneHeader(String)
     case fakePhoneToggle(String, Bool)
     case fakePhoneNumber(String, String)
@@ -28,6 +35,8 @@ private enum SGExtrasEntry: ItemListNodeEntry {
 
     var section: ItemListSectionId {
         switch self {
+        case .toolsHeader, .voiceMorpher, .deviceSpoof, .shadowTheme, .shadowThemeInfo:
+            return SGExtrasSection.tools.rawValue
         case .fakePhoneHeader, .fakePhoneToggle, .fakePhoneNumber, .fakePhoneInfo:
             return SGExtrasSection.fakePhone.rawValue
         case .pollsHeader, .pollPeekToggle, .pollPeekInfo:
@@ -39,6 +48,16 @@ private enum SGExtrasEntry: ItemListNodeEntry {
 
     var stableId: Int32 {
         switch self {
+        case .toolsHeader:
+            return 100
+        case .voiceMorpher:
+            return 101
+        case .deviceSpoof:
+            return 102
+        case .shadowTheme:
+            return 103
+        case .shadowThemeInfo:
+            return 104
         case .fakePhoneHeader:
             return 0
         case .fakePhoneToggle:
@@ -67,7 +86,19 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
         let arguments = arguments as! SGExtrasArguments
         switch self {
-        case let .fakePhoneHeader(text), let .pollsHeader(text), let .exportHeader(text):
+        case let .voiceMorpher(title, value):
+            return ItemListDisclosureItem(presentationData: presentationData, title: title, label: value, sectionId: self.section, style: .blocks, action: {
+                arguments.openVoiceMorpher()
+            })
+        case let .deviceSpoof(title, value):
+            return ItemListDisclosureItem(presentationData: presentationData, title: title, label: value, sectionId: self.section, style: .blocks, action: {
+                arguments.openDeviceSpoof()
+            })
+        case let .shadowTheme(title):
+            return ItemListActionItem(presentationData: presentationData, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.applyShadowTheme()
+            })
+        case let .toolsHeader(text), let .fakePhoneHeader(text), let .pollsHeader(text), let .exportHeader(text):
             return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
         case let .fakePhoneToggle(title, value):
             return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
@@ -81,7 +112,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
                 arguments.togglePollPeek(value)
             })
-        case let .fakePhoneInfo(text), let .pollPeekInfo(text), let .exportInfo(text):
+        case let .shadowThemeInfo(text), let .fakePhoneInfo(text), let .pollPeekInfo(text), let .exportInfo(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
     }
@@ -91,11 +122,17 @@ private final class SGExtrasArguments {
     let toggleFakePhone: (Bool) -> Void
     let updateFakePhone: (String) -> Void
     let togglePollPeek: (Bool) -> Void
+    let openVoiceMorpher: () -> Void
+    let openDeviceSpoof: () -> Void
+    let applyShadowTheme: () -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void) {
         self.toggleFakePhone = toggleFakePhone
         self.updateFakePhone = updateFakePhone
         self.togglePollPeek = togglePollPeek
+        self.openVoiceMorpher = openVoiceMorpher
+        self.openDeviceSpoof = openDeviceSpoof
+        self.applyShadowTheme = applyShadowTheme
     }
 }
 
@@ -103,10 +140,13 @@ private struct SGExtrasState: Equatable {
     var fakePhoneEnabled: Bool
     var fakePhoneNumber: String
     var pollPeekEnabled: Bool
+    var voiceMorpherLabel: String
+    var deviceSpoofEnabled: Bool
 
     static func current() -> SGExtrasState {
         let manager = SGExtrasManager.shared
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled)
+        let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled)
     }
 }
 
@@ -125,10 +165,44 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
 
     entries.append(.exportHeader("ЭКСПОРТ ЧАТОВ"))
     entries.append(.exportInfo("Откройте профиль чата → «⋯» → «Экспорт чата». Сохраняется result.json в формате Telegram Desktop и messages.html."))
+
+    entries.append(.toolsHeader("ИНСТРУМЕНТЫ"))
+    entries.append(.voiceMorpher("Голосовой двойник", state.voiceMorpherLabel))
+    entries.append(.deviceSpoof("Подмена устройства", state.deviceSpoofEnabled ? "Вкл" : "Выкл"))
+    entries.append(.shadowTheme("Применить тему Shadow"))
+    entries.append(.shadowThemeInfo("Тёмная тема в цветах Shadowgram: фиолетовые акценты и пузыри, анимированный фон. Вернуть обычную — Настройки → Оформление."))
     return entries
 }
 
+// Tinted night theme with a violet accent (tints the backgrounds), violet bubbles and a dark animated gradient
+private let sgShadowThemeWallpaper: TelegramWallpaper = .gradient(TelegramWallpaper.Gradient(
+    id: nil,
+    colors: [0x1c1238, 0x0b0818, 0x2a1752, 0x120c28],
+    settings: WallpaperSettings()
+))
+
+private let sgShadowThemeAccentColor = PresentationThemeAccentColor(
+    index: 777,
+    baseColor: .custom,
+    accentColor: 0x8b6cff,
+    bubbleColors: [0x7b5cff, 0x4a2fc0],
+    wallpaper: sgShadowThemeWallpaper
+)
+
+private func sgApplyShadowTheme(context: AccountContext) {
+    let _ = updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+        var updated = current
+        let themeReference: PresentationThemeReference = .builtin(.nightAccent)
+        updated.theme = themeReference
+        updated.themeSpecificAccentColors[themeReference.index] = sgShadowThemeAccentColor
+        updated.themeSpecificChatWallpapers[coloredThemeIndex(reference: themeReference, accentColor: sgShadowThemeAccentColor)] = sgShadowThemeWallpaper
+        updated.automaticThemeSwitchSetting.theme = themeReference
+        return updated
+    }).start()
+}
+
 public func sgExtrasController(context: AccountContext) -> ViewController {
+    var pushControllerImpl: ((ViewController) -> Void)?
     let statePromise = ValuePromise(SGExtrasState.current(), ignoreRepeated: true)
     let refresh: () -> Void = {
         statePromise.set(SGExtrasState.current())
@@ -143,6 +217,12 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
     }, togglePollPeek: { value in
         SGExtrasManager.shared.pollPeekEnabled = value
         refresh()
+    }, openVoiceMorpher: {
+        pushControllerImpl?(voiceMorpherController(context: context))
+    }, openDeviceSpoof: {
+        pushControllerImpl?(deviceSpoofController(context: context))
+    }, applyShadowTheme: {
+        sgApplyShadowTheme(context: context)
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())
@@ -152,5 +232,12 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         return (controllerState, (listState, arguments))
     }
 
-    return ItemListController(context: context, state: signal)
+    let controller = ItemListController(context: context, state: signal)
+    controller.didAppear = { _ in
+        refresh()
+    }
+    pushControllerImpl = { [weak controller] c in
+        controller?.push(c)
+    }
+    return controller
 }

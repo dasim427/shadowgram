@@ -59,6 +59,113 @@ static NSData *base64_decode(NSString *str) {
     }
 }
 
+static NSDictionary<NSNumber *, NSDictionary<NSString *, NSString *> *> *
+MTDeviceSpoofProfiles(void) {
+  static NSDictionary<NSNumber *, NSDictionary<NSString *, NSString *> *>
+      *profiles;
+  static dispatch_once_t onceToken;
+  dispatch_once(&onceToken, ^{
+    profiles = @{
+      @1 : @{
+        @"deviceModel" : @"iPhone 14 Pro",
+        @"systemVersion" : @"iOS 17.2"
+      },
+      @2 : @{
+        @"deviceModel" : @"iPhone 15 Pro Max",
+        @"systemVersion" : @"iOS 17.4"
+      },
+      @3 : @{
+        @"deviceModel" : @"Samsung SM-S918B",
+        @"systemVersion" : @"Android 14"
+      },
+      @4 : @{
+        @"deviceModel" : @"Google Pixel 8 Pro",
+        @"systemVersion" : @"Android 14"
+      },
+      @5 : @{
+        @"deviceModel" : @"PC 64bit",
+        @"systemVersion" : @"Windows 11"
+      },
+      @6 : @{
+        @"deviceModel" : @"MacBook Pro",
+        @"systemVersion" : @"macOS 14.3"
+      },
+      @7 : @{
+        @"deviceModel" : @"Web",
+        @"systemVersion" : @"Chrome 121"
+      },
+      @8 : @{
+        @"deviceModel" : @"HUAWEI MNA-LX9",
+        @"systemVersion" : @"HarmonyOS 4.0"
+      },
+      @9 : @{
+        @"deviceModel" : @"Xiaomi 2311DRK48G",
+        @"systemVersion" : @"Android 14"
+      }
+    };
+  });
+  return profiles;
+}
+
+static NSString *MTDeviceSpoofTrimmedString(NSString *value) {
+  if (value == nil) {
+    return @"";
+  }
+  return
+      [value stringByTrimmingCharactersInSet:
+                 [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSInteger MTDeviceSpoofSanitizedProfileId(NSUserDefaults *defaults) {
+  NSInteger profileId =
+      [defaults integerForKey:@"DeviceSpoof.selectedProfileId"];
+  if (profileId == 0 || profileId == 100 ||
+      MTDeviceSpoofProfiles()[@(profileId)] != nil) {
+    return profileId;
+  }
+  [defaults setInteger:0 forKey:@"DeviceSpoof.selectedProfileId"];
+  return 0;
+}
+
+static BOOL MTDeviceSpoofIsEnabled(NSUserDefaults *defaults) {
+  return [defaults boolForKey:@"DeviceSpoof.hasExplicitConfiguration"] &&
+         [defaults boolForKey:@"DeviceSpoof.isEnabled"];
+}
+
+static void MTDeviceSpoofResolveValues(NSUserDefaults *defaults,
+                                       NSString *__autoreleasing *deviceModel,
+                                       NSString *__autoreleasing *systemVersion) {
+  *deviceModel = nil;
+  *systemVersion = nil;
+
+  if (!MTDeviceSpoofIsEnabled(defaults)) {
+    return;
+  }
+
+  NSInteger profileId = MTDeviceSpoofSanitizedProfileId(defaults);
+  if (profileId == 0) {
+    return;
+  }
+
+  if (profileId == 100) {
+    NSString *customDeviceModel =
+        MTDeviceSpoofTrimmedString([defaults stringForKey:@"DeviceSpoof.customDeviceModel"]);
+    NSString *customSystemVersion =
+        MTDeviceSpoofTrimmedString([defaults stringForKey:@"DeviceSpoof.customSystemVersion"]);
+    if (customDeviceModel.length == 0 || customSystemVersion.length == 0) {
+      return;
+    }
+    *deviceModel = customDeviceModel;
+    *systemVersion = customSystemVersion;
+    return;
+  }
+
+  NSDictionary<NSString *, NSString *> *profile =
+      MTDeviceSpoofProfiles()[@(profileId)];
+  *deviceModel = profile[@"deviceModel"];
+  *systemVersion = profile[@"systemVersion"];
+}
+
 @implementation MTProxySecret
 
 - (instancetype _Nullable)initWithSecret:(NSData * _Nonnull)secret {
@@ -368,18 +475,30 @@ static NSData *base64_decode(NSString *str) {
     self = [super init];
     if (self != nil)
     {
-        if (deviceModelName != nil) {
+        // GHOSTGRAM: device spoofing
+        NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+        NSString *spoofedModel = nil;
+        NSString *spoofedVersion = nil;
+        MTDeviceSpoofResolveValues(defaults, &spoofedModel, &spoofedVersion);
+
+        if (spoofedModel.length > 0) {
+            _deviceModel = spoofedModel;
+        } else if (deviceModelName != nil) {
             _deviceModel = deviceModelName;
         } else {
             _deviceModel = [self platformString];
         }
         _deviceModelName = deviceModelName;
+        if (spoofedVersion.length > 0) {
+            _systemVersion = spoofedVersion;
+        } else {
 #if TARGET_OS_IPHONE
-        _systemVersion = [[UIDevice currentDevice] systemVersion];
+            _systemVersion = [[UIDevice currentDevice] systemVersion];
 #else
-        NSProcessInfo *pInfo = [NSProcessInfo processInfo];
-        _systemVersion = [[[pInfo operatingSystemVersionString] componentsSeparatedByString:@" "] objectAtIndex:1];
+            NSProcessInfo *pInfo = [NSProcessInfo processInfo];
+            _systemVersion = [[[pInfo operatingSystemVersionString] componentsSeparatedByString:@" "] objectAtIndex:1];
 #endif
+        }
         
 NSString *suffix = @"";
 #if TARGET_OS_OSX
