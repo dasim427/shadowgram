@@ -248,7 +248,9 @@ func sgImportIconPack(from url: URL) -> SGIconPackImportResult {
         if SSZipArchive.isFilePasswordProtected(atPath: url.path) {
             return .failure("Архив набора защищён паролем.")
         }
-        guard let payload = try? SSZipArchive.payloadSizeForArchive(atPath: url.path) else {
+        var payloadError: NSError?
+        let payloadValue: NSNumber? = SSZipArchive.payloadSizeForArchive(atPath: url.path, error: &payloadError)
+        guard payloadError == nil, let payload = payloadValue else {
             return .failure("Архив набора повреждён или имеет неверный формат.")
         }
         let unpackedSize = payload.int64Value
