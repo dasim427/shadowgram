@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Display
 import TelegramCore
 
 // Shadowgram: a row of mask buttons above the round video camera. Tapping one switches
@@ -21,6 +22,8 @@ final class SGMaskStripView: UIScrollView {
         self.alwaysBounceHorizontal = true
         self.delaysContentTouches = false
         self.canCancelContentTouches = true
+        // Horizontal swipes here scroll the strip instead of starting Telegram's swipe-back gesture.
+        self.disablesInteractiveTransitionGestureRecognizer = true
         self.reload()
     }
 
