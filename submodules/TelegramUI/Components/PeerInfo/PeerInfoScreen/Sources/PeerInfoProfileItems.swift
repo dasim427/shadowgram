@@ -171,6 +171,13 @@ func infoItems(
                 interaction.requestLayout(animated)
             }))
         }
+        // Shadowgram: numeric user ID, tap to copy
+        let sgUserIdText = "\(user.id.id._internalGetInt64Value())"
+        items[currentPeerInfoSection]!.append(PeerInfoScreenLabeledValueItem(id: 3099, label: "ID", text: sgUserIdText, textColor: .primary, action: { _, _ in
+            UIPasteboard.general.string = sgUserIdText
+        }, requestLayout: { animated in
+            interaction.requestLayout(animated)
+        }))
         if let mainUsername = user.addressName {
             var additionalUsernames: String?
             let usernames = user.usernames.filter { $0.isActive && $0.username != mainUsername }
