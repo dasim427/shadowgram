@@ -22,6 +22,7 @@ public enum SGToggle: String, CaseIterable {
     case hideChatListSeparators
     case darkKeyboard
     case roundedFont
+    case hideContactsTab
 }
 
 public extension SGExtrasManager {
@@ -191,6 +192,31 @@ public extension SGExtrasManager {
         }
         set {
             AYGSharedDefaults.store.set(newValue, forKey: "SG.chatListAvatar")
+        }
+    }
+}
+
+public extension SGExtrasManager {
+    static let bubbleOpacityOptions: [Int] = [50, 70, 85, 100]
+
+    /// Bubble background opacity, in percent.
+    var bubbleOpacityPercent: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.bubbleOpacity")
+            return SGExtrasManager.bubbleOpacityOptions.contains(value) ? value : 100
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.bubbleOpacity")
+        }
+    }
+
+    /// 0xRRGGBB for the bubble outline; 0 keeps the theme's.
+    var bubbleOutlineRGB: Int {
+        get {
+            return AYGSharedDefaults.store.integer(forKey: "SG.bubbleOutline")
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.bubbleOutline")
         }
     }
 }

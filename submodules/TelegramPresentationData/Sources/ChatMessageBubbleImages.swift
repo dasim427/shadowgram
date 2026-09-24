@@ -144,6 +144,11 @@ public func messageBubbleArguments(maxCornerRadius: CGFloat, minCornerRadius: CG
 }
 
 public func messageBubbleImage(maxCornerRadius: CGFloat, minCornerRadius: CGFloat, incoming: Bool, fillColor: UIColor, strokeColor: UIColor, neighbors: MessageBubbleImageNeighbors, shadow: PresentationThemeBubbleShadow?, wallpaper: TelegramWallpaper, knockout knockoutValue: Bool, mask: Bool = false, extendedEdges: Bool = false, onlyOutline: Bool = false, onlyShadow: Bool = false, alwaysFillColor: Bool = false) -> UIImage {
+    // Shadowgram: bubble background opacity and a custom outline color. Masks keep
+    // their solid black so clipping of media inside bubbles is unaffected.
+    let fillColor = mask ? fillColor : sgBubbleFillColor(fillColor)
+    let strokeColor = mask ? strokeColor : sgBubbleStrokeColor(strokeColor)
+
     let topLeftRadius: CGFloat
     let topRightRadius: CGFloat
     let bottomLeftRadius: CGFloat
@@ -528,4 +533,22 @@ public func messageBubbleActionButtonImage(color: UIColor, strokeColor: UIColor,
                 }
         }
     })!.stretchableImage(withLeftCapWidth: Int(size.width / 2.0), topCapHeight: Int(size.height / 2.0))
+}
+
+private func sgBubbleFillColor(_ color: UIColor) -> UIColor {
+    let percent = SGExtrasManager.shared.bubbleOpacityPercent
+    if percent >= 100 {
+        return color
+    }
+    var alpha: CGFloat = 1.0
+    color.getRed(nil, green: nil, blue: nil, alpha: &alpha)
+    return color.withAlphaComponent(alpha * CGFloat(percent) / 100.0)
+}
+
+private func sgBubbleStrokeColor(_ color: UIColor) -> UIColor {
+    let rgb = SGExtrasManager.shared.bubbleOutlineRGB
+    if rgb == 0 {
+        return color
+    }
+    return UIColor(rgb: UInt32(rgb))
 }

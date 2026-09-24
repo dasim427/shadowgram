@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import CoreText
 
 public struct Font {
     public enum Design {
@@ -282,7 +283,28 @@ public struct Font {
     // standard defaults, where the settings screen mirrors the switch.
     private static let sgRounded: Bool = UserDefaults.standard.bool(forKey: "SG.roundedFont")
 
+    // Shadowgram: a font file the user imported (Documents/SGFonts). Registered for this
+    // process on first use; nil when none is set or it fails to load.
+    private static let sgCustomFontName: String? = {
+        guard let fileName = UserDefaults.standard.string(forKey: "SG.customFontFile"), let name = UserDefaults.standard.string(forKey: "SG.customFontName") else {
+            return nil
+        }
+        let url = URL(fileURLWithPath: NSHomeDirectory() + "/Documents/" + fileName)
+        let _ = CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        return UIFont(name: name, size: 12.0) != nil ? name : nil
+    }()
+
+    private static func sgCustomFont(_ size: CGFloat) -> UIFont? {
+        guard let name = Font.sgCustomFontName else {
+            return nil
+        }
+        return UIFont(name: name, size: size)
+    }
+
     public static func regular(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgCustomFont(size) {
+            return font
+        }
         if Font.sgRounded {
             return Font.with(size: size, design: .round, weight: .regular)
         }
@@ -290,6 +312,9 @@ public struct Font {
     }
     
     public static func medium(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgCustomFont(size) {
+            return font
+        }
         if Font.sgRounded {
             return Font.with(size: size, design: .round, weight: .medium)
         }
@@ -297,6 +322,9 @@ public struct Font {
     }
     
     public static func semibold(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgCustomFont(size) {
+            return font
+        }
         if Font.sgRounded {
             return Font.with(size: size, design: .round, weight: .semibold)
         }
@@ -304,6 +332,9 @@ public struct Font {
     }
     
     public static func bold(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgCustomFont(size) {
+            return font
+        }
         if Font.sgRounded {
             return Font.with(size: size, design: .round, weight: .bold)
         }
