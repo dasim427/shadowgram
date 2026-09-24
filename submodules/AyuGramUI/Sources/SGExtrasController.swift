@@ -252,7 +252,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakHeader(200, messages, "СООБЩЕНИЯ"))
     entries.append(.tweakToggle(201, messages, "Скрыть «изменено»", .hideEditedMark, state.isOn(.hideEditedMark)))
     entries.append(.tweakToggle(202, messages, "Скрыть просмотры в каналах", .hideChannelViews, state.isOn(.hideChannelViews)))
-    entries.append(.tweakToggle(203, messages, "Скрывать приветственный стикер", .hideGreetingSticker, state.isOn(.hideGreetingSticker)))
+    entries.append(.tweakToggle(203, messages, "Скрыть стикер-приветствие", .hideGreetingSticker, state.isOn(.hideGreetingSticker)))
     entries.append(.tweakToggle(204, messages, "Анти-капс", .antiCaps, state.isOn(.antiCaps)))
     entries.append(.tweakInfo(205, messages, "Анти-капс: сообщение, набранное капсом, уходит в обычном виде — «ПРИВЕТ ВСЕМ» → «Привет всем»."))
     entries.append(.tweakToggle(206, messages, "Автозамена текста", .textReplacement, state.isOn(.textReplacement)))
@@ -268,7 +268,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
 
     let calls = SGExtrasSection.calls.rawValue
     entries.append(.tweakHeader(400, calls, "ЗВОНКИ"))
-    entries.append(.tweakToggle(401, calls, "Не спрашивать оценку звонка", .noCallRating, state.isOn(.noCallRating)))
+    entries.append(.tweakToggle(401, calls, "Без оценки звонка", .noCallRating, state.isOn(.noCallRating)))
 
     let round = SGExtrasSection.round.rawValue
     entries.append(.tweakHeader(500, round, "КРУЖКИ — РАЗРЕШЕНИЕ"))
@@ -298,10 +298,10 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     let appearance = SGExtrasSection.appearance.rawValue
     entries.append(.tweakHeader(600, appearance, "ОФОРМЛЕНИЕ"))
     entries.append(.tweakToggle(601, appearance, "Квадратные аватарки", .squareAvatars, state.isOn(.squareAvatars)))
-    entries.append(.tweakToggle(602, appearance, "Скрыть кружки сторис в списке чатов", .hideStoryRings, state.isOn(.hideStoryRings)))
+    entries.append(.tweakToggle(602, appearance, "Скрыть кружки сторис", .hideStoryRings, state.isOn(.hideStoryRings)))
     entries.append(.tweakToggle(603, appearance, "Снег в списке чатов", .snow, state.isOn(.snow)))
-    entries.append(.tweakToggle(605, appearance, "Мини-аватарка отправителя в списке чатов", .senderMiniAvatars, state.isOn(.senderMiniAvatars)))
-    entries.append(.tweakInfo(604, appearance, "Аватарки и кружки сторис обновятся при прокрутке или после перезапуска."))
+    entries.append(.tweakToggle(605, appearance, "Аватарка отправителя", .senderMiniAvatars, state.isOn(.senderMiniAvatars)))
+    entries.append(.tweakInfo(606, appearance, "Эти пункты относятся к списку чатов: аватарка отправителя появляется перед его именем в группах, снег падает поверх списка. Аватарки и кружки сторис обновятся при прокрутке или после перезапуска."))
     entries.append(.tweakHeader(610, appearance, "ПУЗЫРИ СООБЩЕНИЙ"))
     entries.append(.bubbleTails(611, appearance, "Хвостик у пузырей", state.bubbleTails))
     var appearanceId: Int32 = 612
@@ -331,7 +331,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     }
     entries.append(.tweakHeader(660, appearance, "ИНТЕРФЕЙС"))
     entries.append(.tweakAction(665, appearance, "Применить AMOLED-тему (чистый чёрный)", 0))
-    entries.append(.tweakToggle(661, appearance, "Скрыть разделители в списке чатов", .hideChatListSeparators, state.isOn(.hideChatListSeparators)))
+    entries.append(.tweakToggle(661, appearance, "Скрыть разделители", .hideChatListSeparators, state.isOn(.hideChatListSeparators)))
     entries.append(.tweakToggle(662, appearance, "Всегда тёмная клавиатура", .darkKeyboard, state.isOn(.darkKeyboard)))
     entries.append(.tweakToggle(663, appearance, "Скруглённый шрифт", .roundedFont, state.isOn(.roundedFont)))
     entries.append(.tweakToggle(666, appearance, "Скрыть вкладку «Контакты»", .hideContactsTab, state.isOn(.hideContactsTab)))
