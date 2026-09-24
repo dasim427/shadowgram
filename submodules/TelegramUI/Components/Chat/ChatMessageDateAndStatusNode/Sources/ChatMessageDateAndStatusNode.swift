@@ -238,7 +238,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             self.context = context
             self.presentationData = presentationData
             self.edited = edited
-            self.impressionCount = impressionCount == 0 ? nil : impressionCount
+            self.impressionCount = (impressionCount == 0 || SGExtrasManager.shared.isOn(.hideChannelViews)) ? nil : impressionCount
             self.dateText = dateText
             self.type = type
             self.layoutInput = layoutInput
@@ -547,7 +547,7 @@ public class ChatMessageDateAndStatusNode: ASDisplayNode {
             }
             
             var updatedDateText = arguments.dateText
-            if arguments.edited {
+            if arguments.edited && !SGExtrasManager.shared.isOn(.hideEditedMark) {
                 if let useEditedTimestamp = arguments.context.getAppConfigValue("message_primary_edited_date") as? Bool, useEditedTimestamp {
                 } else {
                     updatedDateText = "\(arguments.presentationData.strings.Conversation_MessageEditedLabel) \(updatedDateText)"

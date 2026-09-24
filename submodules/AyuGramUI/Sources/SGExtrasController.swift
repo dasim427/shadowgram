@@ -15,6 +15,9 @@ private enum SGExtrasSection: Int32 {
     case polls
     case export
     case tools
+    case messages
+    case privacy
+    case calls
 }
 
 private enum SGExtrasEntry: ItemListNodeEntry {
@@ -32,6 +35,10 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     case pollPeekInfo(String)
     case exportHeader(String)
     case exportInfo(String)
+    case tweakHeader(Int32, Int32, String)
+    case tweakToggle(Int32, Int32, String, SGToggle, Bool)
+    case tweakInfo(Int32, Int32, String)
+    case replacementRules(Int32, Int32, String)
 
     var section: ItemListSectionId {
         switch self {
@@ -43,6 +50,8 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return SGExtrasSection.polls.rawValue
         case .exportHeader, .exportInfo:
             return SGExtrasSection.export.rawValue
+        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _):
+            return section
         }
     }
 
@@ -76,6 +85,8 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return 20
         case .exportInfo:
             return 21
+        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _):
+            return id
         }
     }
 
@@ -114,6 +125,18 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             })
         case let .shadowThemeInfo(text), let .fakePhoneInfo(text), let .pollPeekInfo(text), let .exportInfo(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .tweakHeader(_, _, text):
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: text, sectionId: self.section)
+        case let .tweakToggle(_, _, title, toggle, value):
+            return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.setToggle(toggle, value)
+            })
+        case let .tweakInfo(_, _, text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .replacementRules(_, _, text):
+            return ItemListMultilineInputItem(presentationData: presentationData, text: text, placeholder: "спс = спасибо", maxLength: nil, sectionId: self.section, style: .blocks, capitalization: false, autocorrection: false, textUpdated: { value in
+                arguments.updateReplacementRules(value)
+            })
         }
     }
 }
@@ -125,8 +148,12 @@ private final class SGExtrasArguments {
     let openVoiceMorpher: () -> Void
     let openDeviceSpoof: () -> Void
     let applyShadowTheme: () -> Void
+    let setToggle: (SGToggle, Bool) -> Void
+    let updateReplacementRules: (String) -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void) {
+        self.setToggle = setToggle
+        self.updateReplacementRules = updateReplacementRules
         self.toggleFakePhone = toggleFakePhone
         self.updateFakePhone = updateFakePhone
         self.togglePollPeek = togglePollPeek
@@ -142,11 +169,18 @@ private struct SGExtrasState: Equatable {
     var pollPeekEnabled: Bool
     var voiceMorpherLabel: String
     var deviceSpoofEnabled: Bool
+    var enabledToggles: Set<String>
+    var replacementRules: String
 
     static func current() -> SGExtrasState {
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled)
+        let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText)
+    }
+
+    func isOn(_ toggle: SGToggle) -> Bool {
+        return self.enabledToggles.contains(toggle.rawValue)
     }
 }
 
@@ -171,6 +205,28 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.deviceSpoof("Подмена устройства", state.deviceSpoofEnabled ? "Вкл" : "Выкл"))
     entries.append(.shadowTheme("Применить тему Shadow"))
     entries.append(.shadowThemeInfo("Тёмная тема в цветах Shadowgram: фиолетовые акценты и пузыри, анимированный фон. Вернуть обычную — Настройки → Оформление."))
+
+    let messages = SGExtrasSection.messages.rawValue
+    entries.append(.tweakHeader(200, messages, "СООБЩЕНИЯ"))
+    entries.append(.tweakToggle(201, messages, "Скрыть «изменено»", .hideEditedMark, state.isOn(.hideEditedMark)))
+    entries.append(.tweakToggle(202, messages, "Скрыть просмотры в каналах", .hideChannelViews, state.isOn(.hideChannelViews)))
+    entries.append(.tweakToggle(203, messages, "Скрывать приветственный стикер", .hideGreetingSticker, state.isOn(.hideGreetingSticker)))
+    entries.append(.tweakToggle(204, messages, "Анти-капс", .antiCaps, state.isOn(.antiCaps)))
+    entries.append(.tweakInfo(205, messages, "Анти-капс: сообщение, набранное капсом, уходит в обычном виде — «ПРИВЕТ ВСЕМ» → «Привет всем»."))
+    entries.append(.tweakToggle(206, messages, "Автозамена текста", .textReplacement, state.isOn(.textReplacement)))
+    if state.isOn(.textReplacement) {
+        entries.append(.replacementRules(207, messages, state.replacementRules))
+    }
+    entries.append(.tweakInfo(208, messages, "По правилу на строку: «спс = спасибо». Заменяются целые слова без учёта регистра в момент отправки. В сообщениях с форматированием автозамена не срабатывает."))
+
+    let privacy = SGExtrasSection.privacy.rawValue
+    entries.append(.tweakHeader(300, privacy, "ПРОФИЛИ"))
+    entries.append(.tweakToggle(301, privacy, "Точное время выхода", .exactLastSeen, state.isOn(.exactLastSeen)))
+    entries.append(.tweakInfo(302, privacy, "К «был(а) 2 часа назад» дописывается время выхода: «(14:05)»."))
+
+    let calls = SGExtrasSection.calls.rawValue
+    entries.append(.tweakHeader(400, calls, "ЗВОНКИ"))
+    entries.append(.tweakToggle(401, calls, "Не спрашивать оценку звонка", .noCallRating, state.isOn(.noCallRating)))
     return entries
 }
 
@@ -223,6 +279,12 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         pushControllerImpl?(deviceSpoofController(context: context))
     }, applyShadowTheme: {
         sgApplyShadowTheme(context: context)
+    }, setToggle: { toggle, value in
+        SGExtrasManager.shared.setOn(toggle, value)
+        refresh()
+    }, updateReplacementRules: { value in
+        SGExtrasManager.shared.textReplacementRulesText = value
+        refresh()
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

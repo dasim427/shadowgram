@@ -276,6 +276,9 @@ public final class CallController: ViewController {
         }
         
         self.controllerNode.presentCallRating = { [weak self] callId, isVideo in
+            if SGExtrasManager.shared.isOn(.noCallRating) {
+                return
+            }
             if let strongSelf = self, !strongSelf.presentedCallRating {
                 strongSelf.presentedCallRating = true
                 

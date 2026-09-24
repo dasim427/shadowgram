@@ -578,7 +578,7 @@ public func enqueueMessages(account: Account, peerId: PeerId, messages: [Enqueue
     // controller, because this is the funnel every send goes through — the input panel,
     // the forward picker, the share sheet, media recording. Applying them one layer up
     // would mean finding and patching each of those separately, and missing one is a leak.
-    let messages = aygApplyGhostModeSendOptions(account: account, peerId: peerId, messages: messages)
+    let messages = sgApplyTextTransforms(messages: aygApplyGhostModeSendOptions(account: account, peerId: peerId, messages: messages))
 
     let signal: Signal<[(Bool, EnqueueMessage)], NoError>
     if let transformOutgoingMessageMedia = account.transformOutgoingMessageMedia {
@@ -1411,5 +1411,30 @@ func enqueueMessages(transaction: Transaction, account: Account, peerId: PeerId,
         return messageIds
     } else {
         return []
+    }
+}
+
+// Shadowgram: anti-caps and text replacement rules, applied to every outgoing text here
+// for the same reason as the Ghost Mode options above.
+private func sgApplyTextTransforms(messages: [EnqueueMessage]) -> [EnqueueMessage] {
+    let manager = SGExtrasManager.shared
+    guard manager.isOn(.antiCaps) || manager.isOn(.textReplacement) else {
+        return messages
+    }
+    return messages.map { message in
+        guard case let .message(text, attributes, inlineStickers, mediaReference, threadId, replyToMessageId, replyToStoryId, localGroupingKey, correlationId, bubbleUpEmojiOrStickersets) = message, !text.isEmpty, !text.hasPrefix("/") else {
+            return message
+        }
+        let hasEntities = attributes.contains(where: { attribute in
+            if let attribute = attribute as? TextEntitiesMessageAttribute {
+                return !attribute.entities.isEmpty
+            }
+            return false
+        })
+        let updatedText = manager.transformOutgoingText(text, hasEntities: hasEntities)
+        if updatedText == text {
+            return message
+        }
+        return .message(text: updatedText, attributes: attributes, inlineStickers: inlineStickers, mediaReference: mediaReference, threadId: threadId, replyToMessageId: replyToMessageId, replyToStoryId: replyToStoryId, localGroupingKey: localGroupingKey, correlationId: correlationId, bubbleUpEmojiOrStickersets: bubbleUpEmojiOrStickersets)
     }
 }

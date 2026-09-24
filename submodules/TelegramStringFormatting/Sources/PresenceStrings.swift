@@ -571,6 +571,17 @@ public func stringForStoryActivityTimestamp(strings: PresentationStrings, dateTi
     }
 }
 
+// Shadowgram: " (14:05)" after "last seen 2 hours ago", when the exact time is turned on.
+private func sgExactLastSeenSuffix(statusTimestamp: Int32, dateTimeFormat: PresentationDateTimeFormat) -> String {
+    guard SGExtrasManager.shared.isOn(.exactLastSeen) else {
+        return ""
+    }
+    var t: time_t = time_t(statusTimestamp)
+    var timeinfo: tm = tm()
+    localtime_r(&t, &timeinfo)
+    return " (" + stringForShortTimestamp(hours: timeinfo.tm_hour, minutes: timeinfo.tm_min, dateTimeFormat: dateTimeFormat) + ")"
+}
+
 public func stringAndActivityForUserPresence(strings: PresentationStrings, dateTimeFormat: PresentationDateTimeFormat, presence: EnginePeer.Presence, relativeTo timestamp: Int32, expanded: Bool = false) -> (String, Bool) {
     switch presence.status {
     case let .present(statusTimestamp):
@@ -582,7 +593,7 @@ public func stringAndActivityForUserPresence(strings: PresentationStrings, dateT
                 return (strings.LastSeen_JustNow, false)
             } else if difference < 60 * 60 && !expanded {
                 let minutes = difference / 60
-                return (strings.LastSeen_MinutesAgo(minutes), false)
+                return (strings.LastSeen_MinutesAgo(minutes) + sgExactLastSeenSuffix(statusTimestamp: statusTimestamp, dateTimeFormat: dateTimeFormat), false)
             } else {
                 var t: time_t = time_t(statusTimestamp)
                 var timeinfo: tm = tm()
@@ -604,7 +615,7 @@ public func stringAndActivityForUserPresence(strings: PresentationStrings, dateT
                             day = .today
                         } else {
                             let minutes = difference / (60 * 60)
-                            return (strings.LastSeen_HoursAgo(minutes), false)
+                            return (strings.LastSeen_HoursAgo(minutes) + sgExactLastSeenSuffix(statusTimestamp: statusTimestamp, dateTimeFormat: dateTimeFormat), false)
                         }
                     } else {
                         day = .yesterday

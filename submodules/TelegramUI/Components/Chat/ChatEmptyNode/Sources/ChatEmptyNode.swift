@@ -1687,7 +1687,7 @@ public final class ChatEmptyNode: ASDisplayNode {
                         if peer.isDeleted || peer.botInfo != nil || peer.flags.contains(.isSupport) || peer.isScam || interfaceState.peerIsBlocked {
                             contentType = .regular
                         } else {
-                            contentType = .greeting
+                            contentType = (SGExtrasManager.shared.isOn(.hideGreetingSticker) && interfaceState.businessIntro == nil) ? .regular : .greeting
                             if interfaceState.businessIntro != nil {
                                 displayAttachedDescription = true
                             }
