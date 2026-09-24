@@ -68,6 +68,16 @@ public struct SGMaskLayer: Codable, Equatable {
             }
         }
 
+        /// Eyes, nose, mouth and chin need face landmarks; the rest only need the face box.
+        public var needsLandmarks: Bool {
+            switch self {
+            case .bigEyes, .smallEyes, .bigNose, .bigMouth, .longChin:
+                return true
+            default:
+                return false
+            }
+        }
+
         public var needsBackgroundSeparation: Bool {
             switch self {
             case .blurBackground, .colorBackground, .imageBackground:

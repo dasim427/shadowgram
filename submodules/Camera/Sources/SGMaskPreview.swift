@@ -11,6 +11,8 @@ public final class SGMaskPreview {
     public static let shared = SGMaskPreview()
 
     private let engine = SGMaskEngine()
+    /// The preview is rendered off the camera queue so it never holds up recording.
+    private let renderQueue = DispatchQueue(label: "shadowgram.mask.preview", qos: .userInitiated)
     private let ciContext = CIContext()
     private let lock = NSLock()
     private var handler: ((UIImage?) -> Void)?
@@ -73,19 +75,21 @@ public final class SGMaskPreview {
             self.finishRendering()
             return
         }
-        // Portrait, mirrored like the selfie preview, scaled down for speed.
-        var image = CIImage(cvPixelBuffer: pixelBuffer).oriented(.leftMirrored)
-        let factor = min(1.0, 480.0 / max(1.0, min(image.extent.width, image.extent.height)))
-        image = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
-        image = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
-        let processed = self.engine.applyActiveMask(to: image)
-        let cgImage = self.ciContext.createCGImage(processed, from: processed.extent)
+        self.renderQueue.async {
+            // Portrait, mirrored like the selfie preview, scaled down for speed.
+            var image = CIImage(cvPixelBuffer: pixelBuffer).oriented(.leftMirrored)
+            let factor = min(1.0, 360.0 / max(1.0, min(image.extent.width, image.extent.height)))
+            image = image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
+            image = image.transformed(by: CGAffineTransform(translationX: -image.extent.minX, y: -image.extent.minY))
+            let processed = self.engine.applyActiveMask(to: image)
+            let cgImage = self.ciContext.createCGImage(processed, from: processed.extent)
 
-        DispatchQueue.main.async {
-            if let cgImage {
-                handler(UIImage(cgImage: cgImage))
+            DispatchQueue.main.async {
+                if let cgImage {
+                    handler(UIImage(cgImage: cgImage))
+                }
+                self.finishRendering()
             }
-            self.finishRendering()
         }
     }
 

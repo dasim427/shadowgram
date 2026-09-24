@@ -70,8 +70,9 @@ public final class SGMaskEngine {
 
         var face: Face?
         if layers.contains(where: { $0.kind.needsFace }) {
-            if self.frameIndex - self.lastFaceFrame >= 2 {
-                self.lastFace = self.detectFace(in: image)
+            if self.frameIndex - self.lastFaceFrame >= 3 {
+                let needsLandmarks = layers.contains(where: { $0.kind.needsLandmarks })
+                self.lastFace = self.detectFace(in: image, needsLandmarks: needsLandmarks)
                 self.lastFaceFrame = self.frameIndex
             }
             face = self.lastFace
@@ -79,7 +80,7 @@ public final class SGMaskEngine {
 
         var personMask: CIImage?
         if layers.contains(where: { $0.kind.needsBackgroundSeparation }) {
-            if self.frameIndex - self.lastPersonMaskFrame >= 2 {
+            if self.frameIndex - self.lastPersonMaskFrame >= 3 {
                 self.lastPersonMask = self.detectPerson(in: image)
                 self.lastPersonMaskFrame = self.frameIndex
             }
@@ -95,15 +96,28 @@ public final class SGMaskEngine {
 
     // MARK: - Detection
 
-    private func detectFace(in image: CIImage) -> Face? {
-        let request = VNDetectFaceLandmarksRequest()
-        let handler = VNImageRequestHandler(ciImage: image, options: [:])
-        do {
-            try handler.perform([request])
-        } catch {
-            return nil
+    private func detectFace(in image: CIImage, needsLandmarks: Bool = true) -> Face? {
+        // Vision only needs a small copy; results are normalized, so they map back as is.
+        let handler = VNImageRequestHandler(ciImage: sgDownscaled(image, maxSide: 360.0), options: [:])
+        let observations: [VNFaceObservation]
+        if needsLandmarks {
+            let request = VNDetectFaceLandmarksRequest()
+            do {
+                try handler.perform([request])
+            } catch {
+                return nil
+            }
+            observations = request.results ?? []
+        } else {
+            let request = VNDetectFaceRectanglesRequest()
+            do {
+                try handler.perform([request])
+            } catch {
+                return nil
+            }
+            observations = request.results ?? []
         }
-        guard let observation = (request.results ?? []).max(by: { $0.boundingBox.width < $1.boundingBox.width }) else {
+        guard let observation = observations.max(by: { $0.boundingBox.width < $1.boundingBox.width }) else {
             return nil
         }
         let extent = image.extent
@@ -146,9 +160,9 @@ public final class SGMaskEngine {
             return nil
         }
         let request = VNGeneratePersonSegmentationRequest()
-        request.qualityLevel = .balanced
+        request.qualityLevel = .fast
         request.outputPixelFormat = kCVPixelFormatType_OneComponent8
-        let handler = VNImageRequestHandler(ciImage: image, options: [:])
+        let handler = VNImageRequestHandler(ciImage: sgDownscaled(image, maxSide: 360.0), options: [:])
         do {
             try handler.perform([request])
         } catch {
@@ -175,7 +189,7 @@ public final class SGMaskEngine {
             guard let face else {
                 return image
             }
-            let blurred = image.clampedToExtent().applyingGaussianBlur(sigma: Double(face.bounds.width * (0.03 + 0.09 * intensity))).cropped(to: extent)
+            let blurred = sgCheapBlur(image, sigma: face.bounds.width * (0.03 + 0.09 * intensity), extent: extent)
             return self.blend(blurred, over: image, mask: self.faceMask(face, extent: extent, expand: 1.15))
         case .pixelateFace:
             guard let face else {
@@ -298,7 +312,7 @@ public final class SGMaskEngine {
             guard let personMask else {
                 return image
             }
-            let background = image.clampedToExtent().applyingGaussianBlur(sigma: Double(4.0 + 16.0 * intensity)).cropped(to: extent)
+            let background = sgCheapBlur(image, sigma: 4.0 + 16.0 * intensity, extent: extent)
             return self.blend(image, over: background, mask: personMask)
         case .colorBackground:
             guard let personMask else {
@@ -506,4 +520,23 @@ public func sgMaskPhotoHasFace(_ data: Data) -> Bool {
         return false
     }
     return !(request.results ?? []).isEmpty
+}
+
+/// A copy no larger than `maxSide`, for detection that does not need full resolution.
+private func sgDownscaled(_ image: CIImage, maxSide: CGFloat) -> CIImage {
+    let largest = max(image.extent.width, image.extent.height)
+    if largest <= maxSide {
+        return image
+    }
+    let factor = maxSide / largest
+    return image.transformed(by: CGAffineTransform(scaleX: factor, y: factor))
+}
+
+/// Gaussian blur computed at a quarter of the size and scaled back: close to the full
+/// blur for the large radii masks use, at a fraction of the cost.
+private func sgCheapBlur(_ image: CIImage, sigma: CGFloat, extent: CGRect) -> CIImage {
+    let factor: CGFloat = 0.25
+    let small = image.clampedToExtent().transformed(by: CGAffineTransform(scaleX: factor, y: factor))
+    let blurred = small.applyingGaussianBlur(sigma: Double(max(0.5, sigma * factor)))
+    return blurred.transformed(by: CGAffineTransform(scaleX: 1.0 / factor, y: 1.0 / factor)).cropped(to: extent)
 }
