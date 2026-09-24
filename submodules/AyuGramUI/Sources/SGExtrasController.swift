@@ -44,6 +44,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     case roundOption(Int32, Int32, String, Bool, Int, Int)
     case bubbleTails(Int32, Int32, String, Bool)
     case tweakAction(Int32, Int32, String, Int)
+    case badgeText(Int32, Int32, String)
 
     var section: ItemListSectionId {
         switch self {
@@ -55,7 +56,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return SGExtrasSection.polls.rawValue
         case .exportHeader, .exportInfo:
             return SGExtrasSection.export.rawValue
-        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _), let .bubbleTails(_, section, _, _), let .tweakAction(_, section, _, _):
+        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _), let .bubbleTails(_, section, _, _), let .tweakAction(_, section, _, _), let .badgeText(_, section, _):
             return section
         }
     }
@@ -90,7 +91,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return 20
         case .exportInfo:
             return 21
-        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _), let .bubbleTails(id, _, _, _), let .tweakAction(id, _, _, _):
+        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _), let .bubbleTails(id, _, _, _), let .tweakAction(id, _, _, _), let .badgeText(id, _, _):
             return id
         }
     }
@@ -148,6 +149,10 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return ItemListActionItem(presentationData: presentationData, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.performAction(kind)
             })
+        case let .badgeText(_, _, text):
+            return ItemListSingleLineInputItem(presentationData: presentationData, title: NSAttributedString(string: ""), text: text, placeholder: "Например: 👑 Босс", sectionId: self.section, textUpdated: { value in
+                arguments.updateBadgeText(value)
+            }, action: {})
         case let .tweakInfo(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .replacementRules(_, _, text):
@@ -170,8 +175,10 @@ private final class SGExtrasArguments {
     let selectRoundOption: (Int, Int) -> Void
     let setBubbleTails: (Bool) -> Void
     let performAction: (Int) -> Void
+    let updateBadgeText: (String) -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void, setBubbleTails: @escaping (Bool) -> Void, performAction: @escaping (Int) -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void, setBubbleTails: @escaping (Bool) -> Void, performAction: @escaping (Int) -> Void, updateBadgeText: @escaping (String) -> Void) {
+        self.updateBadgeText = updateBadgeText
         self.performAction = performAction
         self.setBubbleTails = setBubbleTails
         self.selectRoundOption = selectRoundOption
@@ -207,13 +214,16 @@ private struct SGExtrasState: Equatable {
     var hasChatBackground: Bool
     var gifOpacity: Int
     var bubblePadding: Int
+    var badgeText: String
+    var iconPacks: [String]
+    var activeIconPack: String?
 
     static func current(context: AccountContext) -> SGExtrasState {
         let bubbleSettings = context.sharedContext.currentPresentationData.with { $0 }.chatBubbleCorners
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding, badgeText: manager.profileBadgeText, iconPacks: sgInstalledIconPacks(), activeIconPack: sgActiveIconPack())
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -348,6 +358,27 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
         entries.append(.tweakAction(708, appearance, "Убрать фон", 4))
     }
     entries.append(.tweakInfo(709, appearance, "Фон ложится поверх обоев во всех чатах. GIF анимируется. Если чат уже был открыт, фон появится после повторного входа в него."))
+    entries.append(.tweakHeader(720, appearance, "БЕЙДЖ ПРОФИЛЯ"))
+    entries.append(.tweakToggle(721, appearance, "Показывать бейдж", .profileBadge, state.isOn(.profileBadge)))
+    if state.isOn(.profileBadge) {
+        entries.append(.badgeText(722, appearance, state.badgeText))
+    }
+    entries.append(.tweakInfo(723, appearance, "Эмодзи и короткая надпись (до 24 символов) после твоего имени в настройках и в «Моём профиле». Видно только тебе."))
+
+    entries.append(.tweakHeader(730, appearance, "НАБОРЫ ИКОНОК"))
+    entries.append(.roundOption(731, appearance, "Стандартные иконки", state.activeIconPack == nil, 10, -1))
+    var packId: Int32 = 732
+    for (index, pack) in state.iconPacks.prefix(20).enumerated() {
+        entries.append(.roundOption(packId, appearance, pack, state.activeIconPack == pack, 10, index))
+        packId += 1
+    }
+    entries.append(.tweakAction(760, appearance, "Добавить набор (папка с PNG)", 5))
+    entries.append(.tweakAction(761, appearance, "Выгрузить список имён иконок", 6))
+    if state.activeIconPack != nil {
+        entries.append(.tweakAction(762, appearance, "Удалить выбранный набор", 7))
+    }
+    entries.append(.tweakInfo(763, appearance, "Набор — это папка с PNG, названными как иконки Telegram, например Settings/Menu/Proxy.png или Settings_Menu_Proxy.png (можно с @2x/@3x). Список имён собирается из иконок, которые приложение уже показало с момента запуска, поэтому сначала полистай нужные экраны. Смена набора применяется после перезапуска."))
+
     entries.append(.tweakHeader(691, appearance, "СВОЙ ШРИФТ"))
     entries.append(.tweakAction(692, appearance, "Выбрать файл шрифта (.ttf, .otf)", 1))
     if state.customFontName != nil {
@@ -461,6 +492,9 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.gifBackgroundOpacityPercent = value
         case 9:
             SGExtrasManager.shared.bubblePadding = value
+        case 10:
+            let packs = sgInstalledIconPacks()
+            sgSetActiveIconPack(value >= 0 && value < packs.count ? packs[value] : nil)
         default:
             sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
                 settings.mainRadius = Int32(value)
@@ -506,10 +540,36 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             sgRemoveChatBackground()
             SGExtrasManager.shared.setOn(.gifChatBackground, false)
             refresh()
-        default:
+        case 2:
             sgResetCustomFont()
             refresh()
+        case 5:
+            guard let hostController = hostControllerImpl?() else {
+                return
+            }
+            if #available(iOS 14.0, *) {
+                SGIconPackPicker.present(from: hostController, completion: { name in
+                    if let name {
+                        sgSetActiveIconPack(name)
+                    }
+                    refresh()
+                })
+            }
+        case 6:
+            if let hostController = hostControllerImpl?() {
+                sgShareIconNameList(from: hostController)
+            }
+        case 7:
+            if let active = sgActiveIconPack() {
+                sgDeleteIconPack(active)
+            }
+            refresh()
+        default:
+            break
         }
+    }, updateBadgeText: { value in
+        SGExtrasManager.shared.profileBadgeText = value
+        refresh()
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

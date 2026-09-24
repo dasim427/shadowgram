@@ -1231,6 +1231,9 @@ final class PeerInfoHeaderNode: ASDisplayNode {
                 }
             }
 
+            if peer.id == self.context.account.peerId && (self.isSettings || self.isMyProfile), let badge = SGExtrasManager.shared.profileBadge {
+                title += " " + badge
+            }
             titleStringText = title
             titleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white)
             smallTitleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white, shadowColor: titleShadowColor)

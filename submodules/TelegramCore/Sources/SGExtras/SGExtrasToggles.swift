@@ -25,6 +25,7 @@ public enum SGToggle: String, CaseIterable {
     case hideContactsTab
     case senderMiniAvatars
     case gifChatBackground
+    case profileBadge
 }
 
 public extension SGExtrasManager {
@@ -250,5 +251,26 @@ public extension SGExtrasManager {
         set {
             AYGSharedDefaults.store.set(newValue, forKey: "SG.bubblePadding")
         }
+    }
+}
+
+public extension SGExtrasManager {
+    /// Text shown after your own name in your profile, e.g. an emoji and a word.
+    var profileBadgeText: String {
+        get {
+            return AYGSharedDefaults.store.string(forKey: "SG.profileBadge.text") ?? ""
+        }
+        set {
+            AYGSharedDefaults.store.set(String(newValue.prefix(24)), forKey: "SG.profileBadge.text")
+        }
+    }
+
+    /// The badge to draw, or nil when it is off or empty.
+    var profileBadge: String? {
+        let text = self.profileBadgeText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !self.isOn(.profileBadge) || text.isEmpty {
+            return nil
+        }
+        return text
     }
 }
