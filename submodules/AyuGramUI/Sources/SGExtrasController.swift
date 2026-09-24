@@ -283,6 +283,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
         entries.append(.tweakAction(421, calls, "Убрать файл", 12))
     }
     entries.append(.link(422, calls, "Маски", 10))
+    entries.append(.link(424, calls, "Голос и звуки в звонке", 13))
     entries.append(.tweakInfo(423, calls, "Когда в звонке включено видео, вместо камеры собеседник увидит выбранный файл (GIF и видео крутятся по кругу) или тебя с текущей маской. Работает в личных и групповых звонках. Переключать камеру в звонке в этом режиме нельзя."))
 
     let round = SGExtrasSection.round.rawValue
@@ -568,6 +569,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         case 12:
             SGCallVideoStore.removeMedia()
             refresh()
+        case 13:
+            pushControllerImpl?(sgCallAudioController(context: context))
         default:
             break
         }

@@ -1,4 +1,5 @@
 #import <TgVoipWebrtc/OngoingCallThreadLocalContext.h>
+#import <TgVoipWebrtc/SGCallAudioEffects.h>
 #include <cstdint>
 
 #import "MediaUtils.h"
@@ -487,11 +488,20 @@ public:
         bool keyPressed,
         uint32_t& newMicLevel
     ) override {
+        // Shadowgram: voice presets, soundpad and the silent microphone.
+        const void *sgEffectiveSamples = audioSamples;
+        std::vector<int16_t> sgProcessedSamples;
+        if (SGCallAudioEffectsIsActive() && nChannels > 0 && nBytesPerSample == 2 * nChannels) {
+            const int16_t *sgSource = (const int16_t *)audioSamples;
+            sgProcessedSamples.assign(sgSource, sgSource + nSamples * nChannels);
+            SGCallAudioEffectsProcess(sgProcessedSamples.data(), nSamples, nChannels, samplesPerSec);
+            sgEffectiveSamples = sgProcessedSamples.data();
+        }
         _mutex.Lock();
         if (!_audioTransports.empty()) {
             for (size_t i = 0; i < _audioTransports.size(); i++) {
                 _audioTransports[i].first->RecordedDataIsAvailable(
-                    audioSamples,
+                    sgEffectiveSamples,
                     nSamples,
                     nBytesPerSample,
                     nChannels,
@@ -521,11 +531,20 @@ public:
         uint32_t& newMicLevel,
         absl::optional<int64_t> estimatedCaptureTimeNS
     ) override {
+        // Shadowgram: voice presets, soundpad and the silent microphone.
+        const void *sgEffectiveSamples = audioSamples;
+        std::vector<int16_t> sgProcessedSamples;
+        if (SGCallAudioEffectsIsActive() && nChannels > 0 && nBytesPerSample == 2 * nChannels) {
+            const int16_t *sgSource = (const int16_t *)audioSamples;
+            sgProcessedSamples.assign(sgSource, sgSource + nSamples * nChannels);
+            SGCallAudioEffectsProcess(sgProcessedSamples.data(), nSamples, nChannels, samplesPerSec);
+            sgEffectiveSamples = sgProcessedSamples.data();
+        }
         _mutex.Lock();
         if (!_audioTransports.empty()) {
             for (size_t i = 0; i < _audioTransports.size(); i++) {
                 _audioTransports[i].first->RecordedDataIsAvailable(
-                    audioSamples,
+                    sgEffectiveSamples,
                     nSamples,
                     nBytesPerSample,
                     nChannels,
