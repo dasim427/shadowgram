@@ -1231,9 +1231,6 @@ final class PeerInfoHeaderNode: ASDisplayNode {
                 }
             }
 
-            if peer.id == self.context.account.peerId && (self.isSettings || self.isMyProfile), let badge = SGExtrasManager.shared.profileBadge {
-                title += " " + badge
-            }
             titleStringText = title
             titleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white)
             smallTitleAttributes = MultiScaleTextState.Attributes(font: Font.medium(28.0), color: .white, shadowColor: titleShadowColor)
@@ -1612,6 +1609,26 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             }
         }
         
+        // Shadowgram: the user's own badge, after the name icons.
+        let sgBadgeHostView = self.titleNode.stateNode(forKey: TitleNodeStateRegular)?.view
+        let sgExistingBadgeView = sgBadgeHostView?.subviews.first(where: { $0 is SGProfileBadgeView }) as? SGProfileBadgeView
+        let sgIsOwnProfile = peer?.id == self.context.account.peerId && (self.isSettings || self.isMyProfile)
+        if sgIsOwnProfile, let sgBadgeImage = sgProfileBadgeImage(), let sgBadgeHostView {
+            let badgeHeight = floor(titleSize.height * 0.9)
+            let badgeWidth = floor(badgeHeight * sgBadgeImage.size.width / max(1.0, sgBadgeImage.size.height))
+            let badgeView = sgExistingBadgeView ?? SGProfileBadgeView()
+            if badgeView.superview == nil {
+                badgeView.contentMode = .scaleAspectFit
+                sgBadgeHostView.addSubview(badgeView)
+            }
+            badgeView.image = sgBadgeImage
+            badgeView.frame = CGRect(origin: CGPoint(x: nextIconX + 4.0, y: floor((titleSize.height - badgeHeight) / 2.0)), size: CGSize(width: badgeWidth, height: badgeHeight))
+            titleHorizontalOffset -= (badgeWidth + 4.0) / 2.0
+            nextIconX += 4.0 + badgeWidth
+        } else {
+            sgExistingBadgeView?.removeFromSuperview()
+        }
+
         var titleFrame: CGRect
         var subtitleFrame: CGRect
         let usernameFrame: CGRect
