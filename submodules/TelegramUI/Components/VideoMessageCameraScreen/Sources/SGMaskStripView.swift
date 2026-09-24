@@ -34,7 +34,7 @@ final class SGMaskStripView: UIScrollView {
         }
         self.buttons.removeAll()
 
-        let saved = SGMaskStore.load()
+        let saved = SGMaskStore.load().filter { $0.id != "anonymous-calls" }
         let savedIds = Set(saved.map { $0.id })
         var items: [Item] = [Item(title: "Без маски", id: nil, preset: nil)]
         items.append(contentsOf: saved.map { Item(title: $0.name, id: $0.id, preset: nil) })

@@ -605,18 +605,23 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
 
 // Shadowgram: anonymous calls — the "Anonymous" mask on the call camera plus the
 // anonymous voice, switched together.
-private let sgAnonymousMaskId = "anonymous-calls"
+// Same id the round video mask strip gives the "Аноним" preset, so there is one such mask.
+private let sgAnonymousMaskId = "strip-preset-anon"
+// Earlier builds kept a separate copy named "Аноним (звонки)".
+private let sgLegacyAnonymousMaskId = "anonymous-calls"
 
 private func sgAnonymousCallsEnabled() -> Bool {
     return SGCallVideoStore.mode == .maskedCamera && SGMaskStore.activeId == sgAnonymousMaskId && SGCallAudioEffects.voicePreset() == .anonymous
 }
 
 private func sgSetAnonymousCalls(_ enabled: Bool) {
+    if let legacy = SGMaskStore.load().first(where: { $0.id == sgLegacyAnonymousMaskId }) {
+        SGMaskStore.delete(legacy)
+    }
     if enabled {
-        if let preset = SGMaskStore.presets().first(where: { $0.id == "preset-anon" }) {
+        if !SGMaskStore.load().contains(where: { $0.id == sgAnonymousMaskId }), let preset = SGMaskStore.presets().first(where: { $0.id == "preset-anon" }) {
             var mask = preset
             mask.id = sgAnonymousMaskId
-            mask.name = "Аноним (звонки)"
             SGMaskStore.save(mask)
         }
         SGMaskStore.activeId = sgAnonymousMaskId

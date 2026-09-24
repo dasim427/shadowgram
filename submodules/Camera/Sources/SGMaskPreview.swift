@@ -36,7 +36,12 @@ public final class SGMaskPreview {
 
     /// Called on the camera queue for every video frame.
     func process(_ sampleBuffer: CMSampleBuffer, isFront: Bool) {
-        let showsMask = isFront && SGExtrasManager.shared.roundMasksEnabled && SGMaskStore.activeId != nil
+        // With both cameras running, back camera frames arrive interleaved with the front
+        // ones. They must be skipped, not treated as "hide the mask" — that made it blink.
+        if !isFront {
+            return
+        }
+        let showsMask = SGExtrasManager.shared.roundMasksEnabled && SGMaskStore.activeId != nil
 
         self.lock.lock()
         guard let handler = self.handler else {
