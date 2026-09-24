@@ -1400,6 +1400,8 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
     public let titleNode: TextNode
     private var titleBadge: (backgroundView: UIImageView, textNode: TextNode)?
     public let authorNode: AuthorNode
+    // Shadowgram: small avatar of the last message sender, left of the author name.
+    var sgAuthorAvatarNode: AvatarNode?
     private var compoundHighlightingNode: LinkHighlightingNode?
     private var textArrowNode: ASImageNode?
     private var compoundTextButtonNode: HighlightTrackingButtonNode?
@@ -2492,6 +2494,7 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
             }
             
             var authorAttributedString: NSAttributedString?
+            var sgAuthorPeer: EnginePeer?
             var authorIsCurrentChat: Bool = false
             var textAttributedString: NSAttributedString?
             var textLeftCutout: CGFloat = 0.0
@@ -2836,6 +2839,7 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
                             attributedText = foldLineBreaks(draftText)
                         }
                     } else if let message = messages.last {
+                        sgAuthorPeer = message.author
                         var composedString: NSMutableAttributedString
                         
                         if let peerText = peerText {
@@ -3785,7 +3789,8 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
                 }
             }
 
-            let (authorLayout, authorApply) = authorLayout(item.context, rawContentWidth - badgeSize, item.presentationData.theme, effectiveAuthorTitle, forumThreads, authorTopicArrowColor)
+            let sgShowsAuthorAvatar = SGExtrasManager.shared.isOn(.senderMiniAvatars) && sgAuthorPeer != nil
+            let (authorLayout, authorApply) = authorLayout(item.context, rawContentWidth - badgeSize - (sgShowsAuthorAvatar ? 20.0 : 0.0), item.presentationData.theme, effectiveAuthorTitle, forumThreads, authorTopicArrowColor)
             
             var textBottomRightCutout: CGFloat = 0.0
             
@@ -4762,6 +4767,23 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
                     
                     let authorNodeFrame = CGRect(origin: CGPoint(x: contentRect.origin.x - 1.0, y: contentRect.minY + titleLayout.size.height - 2.0), size: authorLayout)
                     strongSelf.authorNode.frame = authorNodeFrame
+                    if sgShowsAuthorAvatar, let sgAuthorPeer, !authorLayout.height.isZero {
+                        let avatarSize: CGFloat = 16.0
+                        let avatarNode: AvatarNode
+                        if let current = strongSelf.sgAuthorAvatarNode {
+                            avatarNode = current
+                        } else {
+                            avatarNode = AvatarNode(font: avatarPlaceholderFont(size: 8.0))
+                            strongSelf.sgAuthorAvatarNode = avatarNode
+                            strongSelf.mainContentContainerNode.addSubnode(avatarNode)
+                        }
+                        avatarNode.frame = CGRect(origin: CGPoint(x: authorNodeFrame.minX + 1.0, y: authorNodeFrame.minY + floor((authorLayout.height - avatarSize) / 2.0) + 1.0), size: CGSize(width: avatarSize, height: avatarSize))
+                        avatarNode.setPeer(context: item.context, theme: item.presentationData.theme, peer: sgAuthorPeer, overrideImage: nil, emptyColor: item.presentationData.theme.list.mediaPlaceholderColor, clipStyle: .round, synchronousLoad: false, displayDimensions: CGSize(width: avatarSize, height: avatarSize))
+                        strongSelf.authorNode.frame = authorNodeFrame.offsetBy(dx: avatarSize + 4.0, dy: 0.0)
+                    } else if let avatarNode = strongSelf.sgAuthorAvatarNode {
+                        avatarNode.removeFromSupernode()
+                        strongSelf.sgAuthorAvatarNode = nil
+                    }
                     let textNodeFrame = CGRect(origin: CGPoint(x: contentRect.origin.x - 1.0, y: contentRect.minY + titleLayout.size.height - 2.0 + (authorLayout.height.isZero ? 0.0 : (authorLayout.height - 3.0))), size: textLayout.size)
                     
                     if let topForumTopicRect, !isSearching {

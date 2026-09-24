@@ -23,6 +23,8 @@ public enum SGToggle: String, CaseIterable {
     case darkKeyboard
     case roundedFont
     case hideContactsTab
+    case senderMiniAvatars
+    case gifChatBackground
 }
 
 public extension SGExtrasManager {
@@ -217,6 +219,21 @@ public extension SGExtrasManager {
         }
         set {
             AYGSharedDefaults.store.set(newValue, forKey: "SG.bubbleOutline")
+        }
+    }
+}
+
+public extension SGExtrasManager {
+    static let gifBackgroundOpacityOptions: [Int] = [30, 50, 70, 100]
+
+    /// Opacity of the picked chat background over the wallpaper, in percent.
+    var gifBackgroundOpacityPercent: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.gifBackgroundOpacity")
+            return SGExtrasManager.gifBackgroundOpacityOptions.contains(value) ? value : 100
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.gifBackgroundOpacity")
         }
     }
 }

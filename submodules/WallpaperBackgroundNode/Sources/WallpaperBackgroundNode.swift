@@ -1734,6 +1734,7 @@ public final class WallpaperBackgroundNodeImpl: ASDisplayNode, WallpaperBackgrou
     public func updateLayout(size: CGSize, displayMode: WallpaperDisplayMode, transition: ContainedViewLayoutTransition) {
         let isFirstLayout = self.validLayout == nil
         self.validLayout = (size, displayMode)
+        self.sgUpdateGifBackground(size: size)
         
         if let freeBackgroundPortalSourceView = self.freeBackgroundPortalSourceView {
             transition.updateFrame(view: freeBackgroundPortalSourceView, frame: CGRect(origin: CGPoint(), size: size))

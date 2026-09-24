@@ -204,13 +204,15 @@ private struct SGExtrasState: Equatable {
     var bubbleOpacity: Int
     var bubbleOutline: Int
     var customFontName: String?
+    var hasChatBackground: Bool
+    var gifOpacity: Int
 
     static func current(context: AccountContext) -> SGExtrasState {
         let bubbleSettings = context.sharedContext.currentPresentationData.with { $0 }.chatBubbleCorners
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName())
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -292,6 +294,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakToggle(601, appearance, "Квадратные аватарки", .squareAvatars, state.isOn(.squareAvatars)))
     entries.append(.tweakToggle(602, appearance, "Скрыть кружки сторис в списке чатов", .hideStoryRings, state.isOn(.hideStoryRings)))
     entries.append(.tweakToggle(603, appearance, "Снег в списке чатов", .snow, state.isOn(.snow)))
+    entries.append(.tweakToggle(605, appearance, "Мини-аватарка отправителя в списке чатов", .senderMiniAvatars, state.isOn(.senderMiniAvatars)))
     entries.append(.tweakInfo(604, appearance, "Аватарки и кружки сторис обновятся при прокрутке или после перезапуска."))
     entries.append(.tweakHeader(610, appearance, "ПУЗЫРИ СООБЩЕНИЙ"))
     entries.append(.bubbleTails(611, appearance, "Хвостик у пузырей", state.bubbleTails))
@@ -326,6 +329,18 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakToggle(662, appearance, "Всегда тёмная клавиатура", .darkKeyboard, state.isOn(.darkKeyboard)))
     entries.append(.tweakToggle(663, appearance, "Скруглённый шрифт", .roundedFont, state.isOn(.roundedFont)))
     entries.append(.tweakToggle(666, appearance, "Скрыть вкладку «Контакты»", .hideContactsTab, state.isOn(.hideContactsTab)))
+    entries.append(.tweakHeader(700, appearance, "GIF-ФОН В ЧАТЕ"))
+    entries.append(.tweakAction(701, appearance, state.hasChatBackground ? "Заменить GIF или картинку" : "Выбрать GIF или картинку", 3))
+    if state.hasChatBackground {
+        entries.append(.tweakToggle(702, appearance, "Показывать фон", .gifChatBackground, state.isOn(.gifChatBackground)))
+        var opacityId: Int32 = 703
+        for percent in SGExtrasManager.gifBackgroundOpacityOptions {
+            entries.append(.roundOption(opacityId, appearance, "Непрозрачность \(percent)%", state.gifOpacity == percent, 8, percent))
+            opacityId += 1
+        }
+        entries.append(.tweakAction(708, appearance, "Убрать фон", 4))
+    }
+    entries.append(.tweakInfo(709, appearance, "Фон ложится поверх обоев во всех чатах. GIF анимируется. Если чат уже был открыт, фон появится после повторного входа в него."))
     entries.append(.tweakHeader(691, appearance, "СВОЙ ШРИФТ"))
     entries.append(.tweakAction(692, appearance, "Выбрать файл шрифта (.ttf, .otf)", 1))
     if state.customFontName != nil {
@@ -435,6 +450,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.bubbleOpacityPercent = value
         case 7:
             SGExtrasManager.shared.bubbleOutlineRGB = value
+        case 8:
+            SGExtrasManager.shared.gifBackgroundOpacityPercent = value
         default:
             sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
                 settings.mainRadius = Int32(value)
@@ -464,6 +481,22 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGFontPicker.present(from: hostController, completion: { _ in
                 refresh()
             })
+        case 3:
+            guard let hostController = hostControllerImpl?() else {
+                return
+            }
+            if #available(iOS 14.0, *) {
+                SGBackgroundPicker.present(from: hostController, completion: { success in
+                    if success {
+                        SGExtrasManager.shared.setOn(.gifChatBackground, true)
+                    }
+                    refresh()
+                })
+            }
+        case 4:
+            sgRemoveChatBackground()
+            SGExtrasManager.shared.setOn(.gifChatBackground, false)
+            refresh()
         default:
             sgResetCustomFont()
             refresh()
