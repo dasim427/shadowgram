@@ -1965,7 +1965,15 @@ public func recommendedVideoExportConfiguration(values: MediaEditorValues, durat
     var useHEVC = hasHEVCHardwareEncoder
     var useVP9 = false
     if let qualityPreset = values.qualityPreset {
-        let maxSize = CGSize(width: qualityPreset.maximumDimensions, height: qualityPreset.maximumDimensions)
+        var maxSize = CGSize(width: qualityPreset.maximumDimensions, height: qualityPreset.maximumDimensions)
+        // Shadowgram: trimmed or multi-segment rounds are re-encoded here, so they must
+        // follow the same quality settings as a round sent straight from the camera.
+        let sgIsVideoMessage = qualityPreset == .videoMessage
+        if sgIsVideoMessage {
+            let side = CGFloat(SGExtrasManager.shared.roundResolution)
+            maxSize = CGSize(width: side, height: side)
+            frameRate = Float(SGExtrasManager.shared.roundFrameRate)
+        }
         var resultSize = values.originalDimensions.cgSize
         if let cropRect = values.cropRect, !cropRect.isEmpty {
             resultSize = targetSize(cropSize: cropRect.size.aspectFitted(maxSize), rotateSideward: values.cropOrientation?.isSideward ?? false)
@@ -1979,8 +1987,12 @@ public func recommendedVideoExportConfiguration(values: MediaEditorValues, durat
         videoBitrate = qualityPreset.videoBitrateKbps
         audioBitrate = qualityPreset.audioBitrateKbps
         audioNumberOfChannels = qualityPreset.audioChannelsCount
-        
+
         useHEVC = false
+        if sgIsVideoMessage {
+            videoBitrate = SGExtrasManager.shared.roundBitrateKbps
+            useHEVC = SGExtrasManager.shared.isOn(.roundHEVC) && hasHEVCHardwareEncoder
+        }
     } else {
         if isAvatar {
             width = 800

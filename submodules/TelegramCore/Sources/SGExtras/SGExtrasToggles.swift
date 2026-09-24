@@ -10,6 +10,12 @@ public enum SGToggle: String, CaseIterable {
     case noCallRating
     case antiCaps
     case textReplacement
+    case round60fps
+    case roundHEVC
+    case roundStartRear
+    case roundMuted
+    case roundKeepMusic
+    case roundSaveToGallery
 }
 
 public extension SGExtrasManager {
@@ -97,4 +103,35 @@ private func sgDecapitalize(_ text: String) -> String {
         }
     }
     return result
+}
+
+// Shadowgram: video message (round video) quality. Telegram records rounds at 400x400
+// and 1 Mbit/s; these let the user go higher.
+public extension SGExtrasManager {
+    static let roundResolutionOptions: [Int32] = [400, 512, 640, 800]
+    static let roundBitrateOptions: [Int] = [1000, 2000, 3000, 5000]
+
+    var roundResolution: Int32 {
+        get {
+            let value = Int32(AYGSharedDefaults.store.integer(forKey: "SG.round.resolution"))
+            return SGExtrasManager.roundResolutionOptions.contains(value) ? value : 400
+        }
+        set {
+            AYGSharedDefaults.store.set(Int(newValue), forKey: "SG.round.resolution")
+        }
+    }
+
+    var roundBitrateKbps: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.round.bitrate")
+            return SGExtrasManager.roundBitrateOptions.contains(value) ? value : 1000
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.round.bitrate")
+        }
+    }
+
+    var roundFrameRate: Double {
+        return self.isOn(.round60fps) ? 60.0 : 30.0
+    }
 }

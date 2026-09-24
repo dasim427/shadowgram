@@ -11,7 +11,11 @@ import RLottieBinding
 import GZip
 import AppBundle
 
-let videoMessageDimensions = PixelDimensions(width: 400, height: 400)
+// Shadowgram: the round video size is user-configurable (400 by default).
+var videoMessageDimensions: PixelDimensions {
+    let side = SGExtrasManager.shared.roundResolution
+    return PixelDimensions(width: side, height: side)
+}
 
 func allocateOutputBufferPool(with inputFormatDescription: CMFormatDescription, outputRetainedBufferCountHint: Int) -> (
     outputBufferPool: CVPixelBufferPool?,

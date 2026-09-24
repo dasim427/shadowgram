@@ -87,6 +87,13 @@ final class CameraDeviceContext {
     
     private func maxDimensions(additional: Bool, preferWide: Bool) -> CMVideoDimensions {
         if self.isRoundVideo && self.exclusive {
+            // Shadowgram: bigger rounds need a bigger capture than 640x480 to be sharper.
+            let side = SGExtrasManager.shared.roundResolution
+            if side > 640 {
+                return CMVideoDimensions(width: 1920, height: 1440)
+            } else if side > 400 {
+                return CMVideoDimensions(width: 1280, height: 960)
+            }
             return CMVideoDimensions(width: 640, height: 480)
         } else {
             if additional || preferWide {
@@ -98,6 +105,9 @@ final class CameraDeviceContext {
     }
     
     private func preferredMaxFrameRate(useLower: Bool) -> Double {
+        if self.isRoundVideo && SGExtrasManager.shared.isOn(.round60fps) {
+            return 60.0
+        }
         if !self.exclusive || self.isRoundVideo || useLower {
             return 30.0
         }

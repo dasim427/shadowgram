@@ -18,6 +18,7 @@ private enum SGExtrasSection: Int32 {
     case messages
     case privacy
     case calls
+    case round
 }
 
 private enum SGExtrasEntry: ItemListNodeEntry {
@@ -39,6 +40,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     case tweakToggle(Int32, Int32, String, SGToggle, Bool)
     case tweakInfo(Int32, Int32, String)
     case replacementRules(Int32, Int32, String)
+    case roundOption(Int32, Int32, String, Bool, Int, Int)
 
     var section: ItemListSectionId {
         switch self {
@@ -50,7 +52,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return SGExtrasSection.polls.rawValue
         case .exportHeader, .exportInfo:
             return SGExtrasSection.export.rawValue
-        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _):
+        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _):
             return section
         }
     }
@@ -85,7 +87,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return 20
         case .exportInfo:
             return 21
-        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _):
+        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _):
             return id
         }
     }
@@ -131,6 +133,10 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
                 arguments.setToggle(toggle, value)
             })
+        case let .roundOption(_, _, title, checked, kind, value):
+            return ItemListCheckboxItem(presentationData: presentationData, title: title, style: .right, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                arguments.selectRoundOption(kind, value)
+            })
         case let .tweakInfo(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .replacementRules(_, _, text):
@@ -150,8 +156,10 @@ private final class SGExtrasArguments {
     let applyShadowTheme: () -> Void
     let setToggle: (SGToggle, Bool) -> Void
     let updateReplacementRules: (String) -> Void
+    let selectRoundOption: (Int, Int) -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void) {
+        self.selectRoundOption = selectRoundOption
         self.setToggle = setToggle
         self.updateReplacementRules = updateReplacementRules
         self.toggleFakePhone = toggleFakePhone
@@ -171,12 +179,14 @@ private struct SGExtrasState: Equatable {
     var deviceSpoofEnabled: Bool
     var enabledToggles: Set<String>
     var replacementRules: String
+    var roundResolution: Int32
+    var roundBitrate: Int
 
     static func current() -> SGExtrasState {
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -227,6 +237,33 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     let calls = SGExtrasSection.calls.rawValue
     entries.append(.tweakHeader(400, calls, "ЗВОНКИ"))
     entries.append(.tweakToggle(401, calls, "Не спрашивать оценку звонка", .noCallRating, state.isOn(.noCallRating)))
+
+    let round = SGExtrasSection.round.rawValue
+    entries.append(.tweakHeader(500, round, "КРУЖКИ — РАЗРЕШЕНИЕ"))
+    var roundId: Int32 = 501
+    for side in SGExtrasManager.roundResolutionOptions {
+        let title = side == 400 ? "400 × 400 (стандарт)" : "\(side) × \(side)"
+        entries.append(.roundOption(roundId, round, title, state.roundResolution == side, 0, Int(side)))
+        roundId += 1
+    }
+    entries.append(.tweakInfo(510, round, "По умолчанию Telegram снимает кружки 400 × 400, поэтому они выглядят размыто. Большее разрешение даёт более чёткую картинку, но файл весит больше."))
+    entries.append(.tweakHeader(520, round, "БИТРЕЙТ"))
+    roundId = 521
+    for kbps in SGExtrasManager.roundBitrateOptions {
+        let mbps = Double(kbps) / 1000.0
+        let title = String(format: "%.0f Мбит/с", mbps) + (kbps == 1000 ? " (стандарт)" : "")
+        entries.append(.roundOption(roundId, round, title, state.roundBitrate == kbps, 1, kbps))
+        roundId += 1
+    }
+    entries.append(.tweakInfo(530, round, "Выше битрейт — меньше артефактов на движении, но файл больше. Для 640 и 800 лучше ставить от 3 Мбит/с."))
+    entries.append(.tweakHeader(540, round, "ЗАПИСЬ КРУЖКОВ"))
+    entries.append(.tweakToggle(541, round, "60 кадров/с", .round60fps, state.isOn(.round60fps)))
+    entries.append(.tweakToggle(542, round, "HEVC (меньше вес)", .roundHEVC, state.isOn(.roundHEVC)))
+    entries.append(.tweakToggle(543, round, "Начинать с задней камеры", .roundStartRear, state.isOn(.roundStartRear)))
+    entries.append(.tweakToggle(544, round, "Записывать без звука", .roundMuted, state.isOn(.roundMuted)))
+    entries.append(.tweakToggle(545, round, "Не останавливать музыку", .roundKeepMusic, state.isOn(.roundKeepMusic)))
+    entries.append(.tweakToggle(546, round, "Сохранять копию в галерею", .roundSaveToGallery, state.isOn(.roundSaveToGallery)))
+    entries.append(.tweakInfo(547, round, "60 кадров/с — плавнее, но сильнее грузит батарею. HEVC примерно вдвое легче H.264, но старые клиенты могут не воспроизвести такой кружок. Копия в галерею попросит доступ к Фото."))
     return entries
 }
 
@@ -284,6 +321,13 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         refresh()
     }, updateReplacementRules: { value in
         SGExtrasManager.shared.textReplacementRulesText = value
+        refresh()
+    }, selectRoundOption: { kind, value in
+        if kind == 0 {
+            SGExtrasManager.shared.roundResolution = Int32(value)
+        } else {
+            SGExtrasManager.shared.roundBitrateKbps = value
+        }
         refresh()
     })
 

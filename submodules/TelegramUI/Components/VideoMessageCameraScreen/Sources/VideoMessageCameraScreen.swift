@@ -950,7 +950,7 @@ public class VideoMessageCameraScreen: ViewController {
             self.previewContainerView.addSubview(self.previewContainerContentView)
                         
             let isDualCameraEnabled = Camera.isDualCameraSupported(forRoundVideo: true)
-            let isFrontPosition = "".isEmpty
+            let isFrontPosition = !SGExtrasManager.shared.isOn(.roundStartRear)
             
             self.mainPreviewView = CameraSimplePreviewView(frame: .zero, main: true, roundVideo: true)
             self.additionalPreviewView = CameraSimplePreviewView(frame: .zero, main: false, roundVideo: true)
@@ -1074,7 +1074,7 @@ public class VideoMessageCameraScreen: ViewController {
                     preset: .hd1920x1080,
                     position: self.cameraState.position,
                     isDualEnabled: self.cameraState.isDualCameraEnabled,
-                    audio: true,
+                    audio: !SGExtrasManager.shared.isOn(.roundMuted),
                     photo: false,
                     metadata: false,
                     isRoundVideo: true
@@ -1895,6 +1895,9 @@ public class VideoMessageCameraScreen: ViewController {
                 self.completion(nil, nil, nil, nil)
                 return
             }
+            if SGExtrasManager.shared.isOn(.roundSaveToGallery) {
+                sgSaveRoundVideosToGallery(paths: videoPaths)
+            }
             
             var startTime: Double = 0.0
             let finalDuration: Double
@@ -1908,7 +1911,8 @@ public class VideoMessageCameraScreen: ViewController {
                 finalDuration = duration
             }
             
-            let dimensions = PixelDimensions(width: 400, height: 400)
+            let sgSide = SGExtrasManager.shared.roundResolution
+            let dimensions = PixelDimensions(width: sgSide, height: sgSide)
             
             let thumbnailImage: Signal<UIImage, NoError>
             if startTime > 0.0 {
@@ -2105,7 +2109,7 @@ public class VideoMessageCameraScreen: ViewController {
     
     private func requestAudioSession() {
         let audioSessionType: ManagedAudioSessionType
-        if self.context.sharedContext.currentMediaInputSettings.with({ $0 }).pauseMusicOnRecording { 
+        if self.context.sharedContext.currentMediaInputSettings.with({ $0 }).pauseMusicOnRecording && !SGExtrasManager.shared.isOn(.roundKeepMusic) {
             audioSessionType = .record(speaker: false, video: false, withOthers: false)
         } else {
             audioSessionType = .record(speaker: false, video: false, withOthers: true)
@@ -2300,5 +2304,30 @@ private final class VideoMessageSendMessageContextPreview: UIView, ChatSendMessa
     
     func update(containerSize: CGSize, transition: ComponentTransition) -> CGSize {
         return self.previewContainerContentView.bounds.size
+    }
+}
+
+// Shadowgram: keeps a copy of every sent round in the photo library. A round recorded
+// in several segments (camera flips) is saved one file per segment.
+private func sgSaveRoundVideosToGallery(paths: [String]) {
+    let save: () -> Void = {
+        PHPhotoLibrary.shared().performChanges({
+            for path in paths {
+                let _ = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: URL(fileURLWithPath: path))
+            }
+        }, completionHandler: nil)
+    }
+    if #available(iOS 14.0, *) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            if status == .authorized || status == .limited {
+                save()
+            }
+        }
+    } else {
+        PHPhotoLibrary.requestAuthorization { status in
+            if status == .authorized {
+                save()
+            }
+        }
     }
 }
