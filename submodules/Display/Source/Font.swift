@@ -278,19 +278,35 @@ public struct Font {
         }
     }
     
+    // Shadowgram: SF Rounded for the whole interface. Read once per launch from the
+    // standard defaults, where the settings screen mirrors the switch.
+    private static let sgRounded: Bool = UserDefaults.standard.bool(forKey: "SG.roundedFont")
+
     public static func regular(_ size: CGFloat) -> UIFont {
+        if Font.sgRounded {
+            return Font.with(size: size, design: .round, weight: .regular)
+        }
         return UIFont.systemFont(ofSize: size)
     }
     
     public static func medium(_ size: CGFloat) -> UIFont {
+        if Font.sgRounded {
+            return Font.with(size: size, design: .round, weight: .medium)
+        }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight.medium)
     }
     
     public static func semibold(_ size: CGFloat) -> UIFont {
+        if Font.sgRounded {
+            return Font.with(size: size, design: .round, weight: .semibold)
+        }
         return UIFont.systemFont(ofSize: size, weight: UIFont.Weight.semibold)
     }
     
     public static func bold(_ size: CGFloat) -> UIFont {
+        if Font.sgRounded {
+            return Font.with(size: size, design: .round, weight: .bold)
+        }
         if #available(iOS 8.2, *) {
             return UIFont.boldSystemFont(ofSize: size)
         } else {

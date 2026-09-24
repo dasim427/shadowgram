@@ -1137,6 +1137,9 @@ public enum PresentationThemeKeyboardColor: Int32 {
     case dark = 1
     
     public var keyboardAppearance: UIKeyboardAppearance {
+        if SGExtrasManager.shared.isOn(.darkKeyboard) {
+            return .dark
+        }
         switch self {
         case .light:
             return .light

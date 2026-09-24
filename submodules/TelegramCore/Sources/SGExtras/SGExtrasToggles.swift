@@ -19,6 +19,9 @@ public enum SGToggle: String, CaseIterable {
     case squareAvatars
     case hideStoryRings
     case snow
+    case hideChatListSeparators
+    case darkKeyboard
+    case roundedFont
 }
 
 public extension SGExtrasManager {
@@ -28,6 +31,9 @@ public extension SGExtrasManager {
 
     func setOn(_ toggle: SGToggle, _ value: Bool) {
         AYGSharedDefaults.store.set(value, forKey: "SG.toggle." + toggle.rawValue)
+        if toggle == .roundedFont {
+            UserDefaults.standard.set(value, forKey: "SG.roundedFont")
+        }
         NotificationCenter.default.post(name: SGExtrasManager.settingsChangedNotification, object: nil)
     }
 
@@ -78,7 +84,7 @@ public extension SGExtrasManager {
 }
 
 private func sgReplaceWholeWords(in text: String, from: String, to: String) -> String {
-    let pattern = "(?<![\p{L}\p{N}])" + NSRegularExpression.escapedPattern(for: from) + "(?![\p{L}\p{N}])"
+    let pattern = #"(?<![\p{L}\p{N}])"# + NSRegularExpression.escapedPattern(for: from) + #"(?![\p{L}\p{N}])"#
     guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
         return text
     }
@@ -158,6 +164,33 @@ public extension SGExtrasManager {
         }
         set {
             AYGSharedDefaults.store.set(newValue, forKey: "SG.checkColor")
+        }
+    }
+}
+
+public extension SGExtrasManager {
+    static let bubbleWidthOptions: [Int] = [70, 80, 90, 100]
+    static let chatListAvatarOptions: [Int] = [70, 80, 90, 100]
+
+    /// Share of the normal maximum bubble width, in percent.
+    var bubbleWidthPercent: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.bubbleWidth")
+            return SGExtrasManager.bubbleWidthOptions.contains(value) ? value : 100
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.bubbleWidth")
+        }
+    }
+
+    /// Chat list avatar size, in percent of the normal one.
+    var chatListAvatarPercent: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.chatListAvatar")
+            return SGExtrasManager.chatListAvatarOptions.contains(value) ? value : 100
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.chatListAvatar")
         }
     }
 }

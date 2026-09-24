@@ -2025,7 +2025,7 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
                 }
             }
             
-            var avatarDiameter = min(60.0, floor(item.presentationData.fontSize.baseDisplaySize * 60.0 / 17.0))
+            var avatarDiameter = floor(min(60.0, floor(item.presentationData.fontSize.baseDisplaySize * 60.0 / 17.0)) * CGFloat(SGExtrasManager.shared.chatListAvatarPercent) / 100.0)
             
             if case let .peer(peerData) = item.content, let customMessageListData = peerData.customMessageListData, customMessageListData.commandPrefix != nil {
                 avatarDiameter = 40.0
@@ -2564,7 +2564,7 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
             let enableChatListPhotos = true
             
             // if changed, adjust setupItem accordingly
-            var avatarDiameter = min(60.0, floor(item.presentationData.fontSize.baseDisplaySize * 60.0 / 17.0))
+            var avatarDiameter = floor(min(60.0, floor(item.presentationData.fontSize.baseDisplaySize * 60.0 / 17.0)) * CGFloat(SGExtrasManager.shared.chatListAvatarPercent) / 100.0)
             let avatarLeftEdgeInset: CGFloat = item.useCommunityViewLayout ? 10.0 : 16.0
             let avatarLeftInset: CGFloat
             
@@ -5384,7 +5384,7 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
                     }
                     
                     transition.updateFrame(node: strongSelf.separatorNode, frame: CGRect(origin: CGPoint(x: leftSeparatorInset, y: layoutOffset + itemHeight - separatorHeight), size: CGSize(width: params.width - leftSeparatorInset - rightSeparatorInset, height: separatorHeight)))
-                    strongSelf.separatorNode.isHidden = hideCommunitySeparator
+                    strongSelf.separatorNode.isHidden = hideCommunitySeparator || SGExtrasManager.shared.isOn(.hideChatListSeparators)
                     if let inlineNavigationLocation = item.interaction.inlineNavigationLocation {
                         strongSelf.updateSeparatorAlpha(transition: transition, inlineNavigationProgress: inlineNavigationLocation.progress)
                     } else {

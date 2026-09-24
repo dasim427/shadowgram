@@ -43,6 +43,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     case replacementRules(Int32, Int32, String)
     case roundOption(Int32, Int32, String, Bool, Int, Int)
     case bubbleTails(Int32, Int32, String, Bool)
+    case tweakAction(Int32, Int32, String)
 
     var section: ItemListSectionId {
         switch self {
@@ -54,7 +55,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return SGExtrasSection.polls.rawValue
         case .exportHeader, .exportInfo:
             return SGExtrasSection.export.rawValue
-        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _), let .bubbleTails(_, section, _, _):
+        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _), let .bubbleTails(_, section, _, _), let .tweakAction(_, section, _):
             return section
         }
     }
@@ -89,7 +90,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return 20
         case .exportInfo:
             return 21
-        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _), let .bubbleTails(id, _, _, _):
+        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _), let .bubbleTails(id, _, _, _), let .tweakAction(id, _, _):
             return id
         }
     }
@@ -143,6 +144,10 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
                 arguments.setBubbleTails(value)
             })
+        case let .tweakAction(_, _, title):
+            return ItemListActionItem(presentationData: presentationData, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.applyAmoledTheme()
+            })
         case let .tweakInfo(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .replacementRules(_, _, text):
@@ -164,8 +169,10 @@ private final class SGExtrasArguments {
     let updateReplacementRules: (String) -> Void
     let selectRoundOption: (Int, Int) -> Void
     let setBubbleTails: (Bool) -> Void
+    let applyAmoledTheme: () -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void, setBubbleTails: @escaping (Bool) -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void, setBubbleTails: @escaping (Bool) -> Void, applyAmoledTheme: @escaping () -> Void) {
+        self.applyAmoledTheme = applyAmoledTheme
         self.setBubbleTails = setBubbleTails
         self.selectRoundOption = selectRoundOption
         self.setToggle = setToggle
@@ -192,13 +199,15 @@ private struct SGExtrasState: Equatable {
     var checkColor: Int
     var bubbleRadius: Int32
     var bubbleTails: Bool
+    var bubbleWidth: Int
+    var chatListAvatar: Int
 
     static func current(context: AccountContext) -> SGExtrasState {
         let bubbleSettings = context.sharedContext.currentPresentationData.with { $0 }.chatBubbleCorners
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -296,6 +305,24 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
         appearanceId += 1
     }
     entries.append(.tweakInfo(630, appearance, "Цвет галочек на исходящих сообщениях применяется после перезапуска приложения."))
+    entries.append(.tweakHeader(640, appearance, "ШИРИНА ПУЗЫРЕЙ"))
+    appearanceId = 641
+    for percent in SGExtrasManager.bubbleWidthOptions {
+        entries.append(.roundOption(appearanceId, appearance, "\(percent)%" + (percent == 100 ? " (стандарт)" : ""), state.bubbleWidth == percent, 4, percent))
+        appearanceId += 1
+    }
+    entries.append(.tweakHeader(650, appearance, "РАЗМЕР АВАТАРОК В СПИСКЕ ЧАТОВ"))
+    appearanceId = 651
+    for percent in SGExtrasManager.chatListAvatarOptions {
+        entries.append(.roundOption(appearanceId, appearance, "\(percent)%" + (percent == 100 ? " (стандарт)" : ""), state.chatListAvatar == percent, 5, percent))
+        appearanceId += 1
+    }
+    entries.append(.tweakHeader(660, appearance, "ИНТЕРФЕЙС"))
+    entries.append(.tweakAction(665, appearance, "Применить AMOLED-тему (чистый чёрный)"))
+    entries.append(.tweakToggle(661, appearance, "Скрыть разделители в списке чатов", .hideChatListSeparators, state.isOn(.hideChatListSeparators)))
+    entries.append(.tweakToggle(662, appearance, "Всегда тёмная клавиатура", .darkKeyboard, state.isOn(.darkKeyboard)))
+    entries.append(.tweakToggle(663, appearance, "Скруглённый шрифт", .roundedFont, state.isOn(.roundedFont)))
+    entries.append(.tweakInfo(664, appearance, "Ширина пузырей и размер аватарок применяются к новым строкам сразу, а полностью — после перезапуска. Скруглённый шрифт (SF Rounded) включается после перезапуска."))
     entries.append(.tweakInfo(547, round,"60 кадров/с — плавнее, но сильнее грузит батарею. HEVC примерно вдвое легче H.264, но старые клиенты могут не воспроизвести такой кружок. Копия в галерею попросит доступ к Фото."))
     return entries
 }
@@ -376,6 +403,10 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.roundBitrateKbps = value
         case 2:
             SGExtrasManager.shared.checkColorRGB = value
+        case 4:
+            SGExtrasManager.shared.bubbleWidthPercent = value
+        case 5:
+            SGExtrasManager.shared.chatListAvatarPercent = value
         default:
             sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
                 settings.mainRadius = Int32(value)
@@ -387,6 +418,15 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
             settings.hasTails = value
         }
+    }, applyAmoledTheme: {
+        // Telegram's built-in "Night" theme already uses pure black backgrounds.
+        let _ = updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+            var updated = current
+            let themeReference: PresentationThemeReference = .builtin(.night)
+            updated.theme = themeReference
+            updated.automaticThemeSwitchSetting.theme = themeReference
+            return updated
+        }).start()
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())
