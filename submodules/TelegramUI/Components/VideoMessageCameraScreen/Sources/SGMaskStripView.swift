@@ -19,6 +19,8 @@ final class SGMaskStripView: UIScrollView {
         self.showsHorizontalScrollIndicator = false
         self.showsVerticalScrollIndicator = false
         self.alwaysBounceHorizontal = true
+        self.delaysContentTouches = false
+        self.canCancelContentTouches = true
         self.reload()
     }
 

@@ -1299,8 +1299,13 @@ public class VideoMessageCameraScreen: ViewController {
         }
         
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            // Shadowgram: the mask strip sits over other full-screen layers; give it its taps first.
+            if !self.sgMaskStrip.isHidden, self.sgMaskStrip.superview != nil, let stripHit = self.sgMaskStrip.hitTest(self.view.convert(point, to: self.sgMaskStrip), with: event) {
+                return stripHit
+            }
+
             let result = super.hitTest(point, with: event)
-            
+
             if let resultPreviewView = self.resultPreviewView {
                 if resultPreviewView.bounds.contains(self.view.convert(point, to: resultPreviewView)) {
                     return resultPreviewView
@@ -1571,6 +1576,7 @@ public class VideoMessageCameraScreen: ViewController {
             let sgStripY = max((layout.statusBarHeight ?? 20.0) + 4.0, previewFrame.minY - sgStripHeight - 10.0)
             self.sgMaskStrip.frame = CGRect(x: 0.0, y: sgStripY, width: layout.size.width, height: sgStripHeight)
             self.sgMaskStrip.isHidden = !SGExtrasManager.shared.roundMasksEnabled || self.previewState != nil
+            self.containerView.bringSubviewToFront(self.sgMaskStrip)
             
             transition.setAlpha(view: self.additionalPreviewView, alpha: self.cameraState.position == .front ? 1.0 : 0.0)
             
