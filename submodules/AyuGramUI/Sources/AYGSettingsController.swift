@@ -113,10 +113,7 @@ private func aygSettingsControllerEntries(version: String) -> [AYGSettingsEntry]
     for category in AYGSettingsCategory.allCases {
         entries.append(.category(category))
     }
-    entries.append(.linksHeader(aygString("LinksHeader").uppercased()))
-    for link in AYGSettingsLink.allCases {
-        entries.append(.link(link))
-    }
+    // Shadowgram: no links section — the AyuGram channel/chat/docs links are not ours.
     return entries
 }
 

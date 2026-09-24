@@ -330,7 +330,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
         appearanceId += 1
     }
     entries.append(.tweakHeader(660, appearance, "ИНТЕРФЕЙС"))
-    entries.append(.tweakAction(665, appearance, "Применить AMOLED-тему (чистый чёрный)", 0))
+    entries.append(.tweakAction(665, appearance, "Применить AMOLED-тему", 0))
     entries.append(.tweakToggle(661, appearance, "Скрыть разделители", .hideChatListSeparators, state.isOn(.hideChatListSeparators)))
     entries.append(.tweakToggle(662, appearance, "Всегда тёмная клавиатура", .darkKeyboard, state.isOn(.darkKeyboard)))
     entries.append(.tweakToggle(663, appearance, "Скруглённый шрифт", .roundedFont, state.isOn(.roundedFont)))
