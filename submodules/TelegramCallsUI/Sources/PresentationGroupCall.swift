@@ -3227,7 +3227,7 @@ public final class PresentationGroupCallImpl: PresentationGroupCall {
     
     public func makeOutgoingVideoView(requestClone: Bool, completion: @escaping (PresentationCallVideoView?, PresentationCallVideoView?) -> Void) {
         if self.videoCapturer == nil {
-            let videoCapturer = OngoingCallVideoCapturer()
+            let videoCapturer = sgMakeCallVideoCapturer()
             self.videoCapturer = videoCapturer
         }
 
@@ -3373,7 +3373,7 @@ public final class PresentationGroupCallImpl: PresentationGroupCall {
     
     public func requestVideo() {
         if self.videoCapturer == nil {
-            let videoCapturer = OngoingCallVideoCapturer()
+            let videoCapturer = sgMakeCallVideoCapturer()
             self.videoCapturer = videoCapturer
         }
 

@@ -235,7 +235,7 @@ public final class PresentationCallImpl: PresentationCall {
         self.peer = peer
         self.isVideo = startWithVideo
         if self.isVideo {
-            self.videoCapturer = OngoingCallVideoCapturer()
+            self.videoCapturer = sgMakeCallVideoCapturer()
             self.statePromise.set(PresentationCallState(state: isOutgoing ? .waiting : .ringing, videoState: .active(isScreencast: self.isScreencastActive, endpointId: ""), remoteVideoState: .inactive, remoteAudioState: .active, remoteBatteryLevel: .normal, supportsConferenceCalls: self.supportsConferenceCalls))
         } else {
             self.statePromise.set(PresentationCallState(state: isOutgoing ? .waiting : .ringing, videoState: self.isVideoPossible ? .inactive : .notAvailable, remoteVideoState: .inactive, remoteAudioState: .active, remoteBatteryLevel: .normal, supportsConferenceCalls: self.supportsConferenceCalls))
@@ -1568,7 +1568,7 @@ public final class PresentationCallImpl: PresentationCall {
             return
         }
         if self.videoCapturer == nil {
-            let videoCapturer = OngoingCallVideoCapturer()
+            let videoCapturer = sgMakeCallVideoCapturer()
             self.videoCapturer = videoCapturer
         }
         if let videoCapturer = self.videoCapturer {
@@ -1789,7 +1789,7 @@ public final class PresentationCallImpl: PresentationCall {
             return
         }
         if self.videoCapturer == nil {
-            let videoCapturer = OngoingCallVideoCapturer()
+            let videoCapturer = sgMakeCallVideoCapturer()
             self.videoCapturer = videoCapturer
         }
         

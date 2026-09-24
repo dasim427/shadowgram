@@ -54,6 +54,7 @@ swift_library(
     ],
     deps = [
         "//submodules/AyuGramUI:AyuGramUI",
+        "//submodules/Camera:Camera",
         "//submodules/SSignalKit/SSignalKit",
     	"//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Display:Display",

@@ -210,6 +210,8 @@ private struct SGExtrasState: Equatable {
     var bubbleOutline: Int
     var customFontName: String?
     var fontPreset: String?
+    var callVideoMode: Int
+    var hasCallMedia: Bool
     var hasChatBackground: Bool
     var gifOpacity: Int
     var bubblePadding: Int
@@ -219,7 +221,7 @@ private struct SGExtrasState: Equatable {
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), fontPreset: sgActiveFontPreset(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), fontPreset: sgActiveFontPreset(), callVideoMode: SGCallVideoStore.mode.rawValue, hasCallMedia: SGCallVideoStore.mediaPath != nil, hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -270,6 +272,18 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     let calls = SGExtrasSection.calls.rawValue
     entries.append(.tweakHeader(400, calls, "ЗВОНКИ"))
     entries.append(.tweakToggle(401, calls, "Без оценки звонка", .noCallRating, state.isOn(.noCallRating)))
+    entries.append(.tweakHeader(410, calls, "ВИДЕО В ЗВОНКЕ"))
+    var callModeId: Int32 = 411
+    for mode in SGCallVideoMode.allCases {
+        entries.append(.roundOption(callModeId, calls, mode.title, state.callVideoMode == mode.rawValue, 12, mode.rawValue))
+        callModeId += 1
+    }
+    entries.append(.tweakAction(420, calls, state.hasCallMedia ? "Заменить файл для звонка" : "Выбрать файл для звонка", 11))
+    if state.hasCallMedia {
+        entries.append(.tweakAction(421, calls, "Убрать файл", 12))
+    }
+    entries.append(.link(422, calls, "Маски", 10))
+    entries.append(.tweakInfo(423, calls, "Когда в звонке включено видео, вместо камеры собеседник увидит выбранный файл (GIF и видео крутятся по кругу) или тебя с текущей маской. Работает в личных и групповых звонках. Переключать камеру в звонке в этом режиме нельзя."))
 
     let round = SGExtrasSection.round.rawValue
     entries.append(.tweakHeader(500, round, "КРУЖКИ — РАЗРЕШЕНИЕ"))
@@ -481,6 +495,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.gifBackgroundOpacityPercent = value
         case 9:
             SGExtrasManager.shared.bubblePadding = value
+        case 12:
+            SGCallVideoStore.mode = SGCallVideoMode(rawValue: value) ?? .off
         case 11:
             sgSetFontPreset(value >= 0 && value < sgFontPresets.count ? sgFontPresets[value].family : nil)
         default:
@@ -537,6 +553,21 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             pushControllerImpl?(sgIconPacksController(context: context))
         case 10:
             pushControllerImpl?(sgMasksController(context: context))
+        case 11:
+            guard let hostController = hostControllerImpl?() else {
+                return
+            }
+            if #available(iOS 14.0, *) {
+                SGCallMediaPicker.present(from: hostController, completion: { success in
+                    if success {
+                        SGCallVideoStore.mode = .media
+                    }
+                    refresh()
+                })
+            }
+        case 12:
+            SGCallVideoStore.removeMedia()
+            refresh()
         default:
             break
         }
