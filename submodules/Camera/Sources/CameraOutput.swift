@@ -613,7 +613,12 @@ final class CameraOutput: NSObject {
                 
                 self.lastAudioSampleTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer) + CMSampleBufferGetDuration(sampleBuffer)
             }
-            videoRecorder.appendSampleBuffer(sampleBuffer)
+            // Shadowgram: the "Voice double" voice on round videos too.
+            var sgSampleBuffer = sampleBuffer
+            if case .roundVideo = self.currentMode, type == kCMMediaType_Audio, let processed = SGRoundVoiceProcessor.shared.process(sampleBuffer) {
+                sgSampleBuffer = processed
+            }
+            videoRecorder.appendSampleBuffer(sgSampleBuffer)
         }
     }
     
