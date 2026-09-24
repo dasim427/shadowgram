@@ -7,6 +7,7 @@ import TelegramPresentationData
 import ItemListUI
 import AccountContext
 import TelegramUIPreferences
+import TgVoipWebrtc
 
 // Shadowgram: settings for the features Shadowgram adds on top of AyuGram.
 
@@ -212,6 +213,7 @@ private struct SGExtrasState: Equatable {
     var fontPreset: String?
     var callVideoMode: Int
     var hasCallMedia: Bool
+    var anonymousCalls: Bool
     var hasChatBackground: Bool
     var gifOpacity: Int
     var bubblePadding: Int
@@ -221,7 +223,7 @@ private struct SGExtrasState: Equatable {
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), fontPreset: sgActiveFontPreset(), callVideoMode: SGCallVideoStore.mode.rawValue, hasCallMedia: SGCallVideoStore.mediaPath != nil, hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), fontPreset: sgActiveFontPreset(), callVideoMode: SGCallVideoStore.mode.rawValue, hasCallMedia: SGCallVideoStore.mediaPath != nil, anonymousCalls: sgAnonymousCallsEnabled(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -272,6 +274,8 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     let calls = SGExtrasSection.calls.rawValue
     entries.append(.tweakHeader(400, calls, "ЗВОНКИ"))
     entries.append(.tweakToggle(401, calls, "Без оценки звонка", .noCallRating, state.isOn(.noCallRating)))
+    entries.append(.tweakAction(405, calls, state.anonymousCalls ? "Выключить анонимный режим" : "Включить анонимный режим", 14))
+    entries.append(.tweakInfo(406, calls, "Анонимный режим одним нажатием прячет лицо (маска «Аноним» на камере в видеозвонке) и меняет голос. Второе нажатие возвращает обычную камеру и твой голос."))
     entries.append(.tweakHeader(410, calls, "ВИДЕО В ЗВОНКЕ"))
     var callModeId: Int32 = 411
     for mode in SGCallVideoMode.allCases {
@@ -571,6 +575,9 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             refresh()
         case 13:
             pushControllerImpl?(sgCallAudioController(context: context))
+        case 14:
+            sgSetAnonymousCalls(!sgAnonymousCallsEnabled())
+            refresh()
         default:
             break
         }
@@ -594,4 +601,32 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         return controller
     }
     return controller
+}
+
+// Shadowgram: anonymous calls — the "Anonymous" mask on the call camera plus the
+// anonymous voice, switched together.
+private let sgAnonymousMaskId = "anonymous-calls"
+
+private func sgAnonymousCallsEnabled() -> Bool {
+    return SGCallVideoStore.mode == .maskedCamera && SGMaskStore.activeId == sgAnonymousMaskId && SGCallAudioEffects.voicePreset() == .anonymous
+}
+
+private func sgSetAnonymousCalls(_ enabled: Bool) {
+    if enabled {
+        if let preset = SGMaskStore.presets().first(where: { $0.id == "preset-anon" }) {
+            var mask = preset
+            mask.id = sgAnonymousMaskId
+            mask.name = "Аноним (звонки)"
+            SGMaskStore.save(mask)
+        }
+        SGMaskStore.activeId = sgAnonymousMaskId
+        SGCallVideoStore.mode = .maskedCamera
+        SGCallAudioEffects.setVoicePreset(.anonymous)
+    } else {
+        if SGMaskStore.activeId == sgAnonymousMaskId {
+            SGMaskStore.activeId = nil
+        }
+        SGCallVideoStore.mode = .off
+        SGCallAudioEffects.setVoicePreset(.off)
+    }
 }
