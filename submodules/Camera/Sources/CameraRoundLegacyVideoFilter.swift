@@ -122,6 +122,11 @@ final class CameraRoundLegacyVideoFilter {
             sourceImage = sourceImage.cropped(to: CGRect(x: 0.0, y: 0.0, width: sourceImage.extent.width, height: sourceImage.extent.width))
         }
         
+        // Shadowgram: the active mask, on the front camera only.
+        if additional {
+            sourceImage = SGMaskEngine.shared.applyActiveMask(to: sourceImage)
+        }
+
         if additional {
             self.lastAdditionalSourceImage = sourceImage
         } else {

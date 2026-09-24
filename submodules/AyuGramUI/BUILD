@@ -32,6 +32,7 @@ swift_library(
         "//submodules/TelegramUI/Components/ChatTitleView",
         "//submodules/TelegramUI/Components/Chat/ChatAvatarNavigationNode",
         "//third-party/ZipArchive:ZipArchive",
+        "//submodules/Camera:Camera",
     ],
     visibility = [
         "//visibility:public",

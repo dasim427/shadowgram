@@ -388,6 +388,7 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakInfo(690, appearance, "Прозрачность и обводка пузырей применяются после перезапуска. Прозрачные пузыри лучше смотрятся на обоях с картинкой. Вкладка «Контакты» скрывается после перезапуска."))
     entries.append(.tweakInfo(664, appearance, "Ширина пузырей и размер аватарок применяются к новым строкам сразу, а полностью — после перезапуска. Скруглённый шрифт (SF Rounded) включается после перезапуска."))
     entries.append(.tweakInfo(547, round,"60 кадров/с — плавнее, но сильнее грузит батарею. HEVC примерно вдвое легче H.264, но старые клиенты могут не воспроизвести такой кружок. Копия в галерею попросит доступ к Фото."))
+    entries.append(.link(548, round, "Маски в кружках", 10))
     return entries
 }
 
@@ -534,6 +535,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             pushControllerImpl?(sgBadgesController(context: context))
         case 9:
             pushControllerImpl?(sgIconPacksController(context: context))
+        case 10:
+            pushControllerImpl?(sgMasksController(context: context))
         default:
             break
         }
