@@ -2355,6 +2355,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
     
     override public func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        self.sgUpdateSnow()
                 
         if self.powerSavingMonitoringDisposable == nil {
             self.powerSavingMonitoringDisposable = (self.context.sharedContext.automaticMediaDownloadSettings
@@ -3150,6 +3151,7 @@ public class ChatListControllerImpl: TelegramBaseController, ChatListController 
         self.validLayout = layout
         
         self.updateLayout(layout: layout, transition: transition)
+        self.sgUpdateSnow()
         
         if layout.inVoiceOver != wasInVoiceOver {
             self.chatListDisplayNode.scrollToTop()
@@ -7540,4 +7542,22 @@ public func resolveChatListNavigationTarget(navigationController: NavigationCont
     }
     
     return nil
+}
+
+// Shadowgram: snow over the main chat list when the "snow" switch is on.
+extension ChatListController {
+    func sgUpdateSnow() {
+        let existing = self.view.subviews.first(where: { $0 is SGSnowView })
+        guard case .chatList = self.location, SGExtrasManager.shared.isOn(.snow) else {
+            existing?.removeFromSuperview()
+            return
+        }
+        let snowView = existing ?? SGSnowView(frame: self.view.bounds)
+        if snowView.superview == nil {
+            self.view.addSubview(snowView)
+        } else {
+            self.view.bringSubviewToFront(snowView)
+        }
+        snowView.frame = self.view.bounds
+    }
 }

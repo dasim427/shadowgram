@@ -19,6 +19,7 @@ private enum SGExtrasSection: Int32 {
     case privacy
     case calls
     case round
+    case appearance
 }
 
 private enum SGExtrasEntry: ItemListNodeEntry {
@@ -41,6 +42,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
     case tweakInfo(Int32, Int32, String)
     case replacementRules(Int32, Int32, String)
     case roundOption(Int32, Int32, String, Bool, Int, Int)
+    case bubbleTails(Int32, Int32, String, Bool)
 
     var section: ItemListSectionId {
         switch self {
@@ -52,7 +54,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return SGExtrasSection.polls.rawValue
         case .exportHeader, .exportInfo:
             return SGExtrasSection.export.rawValue
-        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _):
+        case let .tweakHeader(_, section, _), let .tweakToggle(_, section, _, _, _), let .tweakInfo(_, section, _), let .replacementRules(_, section, _), let .roundOption(_, section, _, _, _, _), let .bubbleTails(_, section, _, _):
             return section
         }
     }
@@ -87,7 +89,7 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return 20
         case .exportInfo:
             return 21
-        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _):
+        case let .tweakHeader(id, _, _), let .tweakToggle(id, _, _, _, _), let .tweakInfo(id, _, _), let .replacementRules(id, _, _), let .roundOption(id, _, _, _, _, _), let .bubbleTails(id, _, _, _):
             return id
         }
     }
@@ -137,6 +139,10 @@ private enum SGExtrasEntry: ItemListNodeEntry {
             return ItemListCheckboxItem(presentationData: presentationData, title: title, style: .right, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
                 arguments.selectRoundOption(kind, value)
             })
+        case let .bubbleTails(_, _, title, value):
+            return ItemListSwitchItem(presentationData: presentationData, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.setBubbleTails(value)
+            })
         case let .tweakInfo(_, _, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         case let .replacementRules(_, _, text):
@@ -157,8 +163,10 @@ private final class SGExtrasArguments {
     let setToggle: (SGToggle, Bool) -> Void
     let updateReplacementRules: (String) -> Void
     let selectRoundOption: (Int, Int) -> Void
+    let setBubbleTails: (Bool) -> Void
 
-    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void) {
+    init(toggleFakePhone: @escaping (Bool) -> Void, updateFakePhone: @escaping (String) -> Void, togglePollPeek: @escaping (Bool) -> Void, openVoiceMorpher: @escaping () -> Void, openDeviceSpoof: @escaping () -> Void, applyShadowTheme: @escaping () -> Void, setToggle: @escaping (SGToggle, Bool) -> Void, updateReplacementRules: @escaping (String) -> Void, selectRoundOption: @escaping (Int, Int) -> Void, setBubbleTails: @escaping (Bool) -> Void) {
+        self.setBubbleTails = setBubbleTails
         self.selectRoundOption = selectRoundOption
         self.setToggle = setToggle
         self.updateReplacementRules = updateReplacementRules
@@ -181,12 +189,16 @@ private struct SGExtrasState: Equatable {
     var replacementRules: String
     var roundResolution: Int32
     var roundBitrate: Int
+    var checkColor: Int
+    var bubbleRadius: Int32
+    var bubbleTails: Bool
 
-    static func current() -> SGExtrasState {
+    static func current(context: AccountContext) -> SGExtrasState {
+        let bubbleSettings = context.sharedContext.currentPresentationData.with { $0 }.chatBubbleCorners
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -263,7 +275,28 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakToggle(544, round, "Записывать без звука", .roundMuted, state.isOn(.roundMuted)))
     entries.append(.tweakToggle(545, round, "Не останавливать музыку", .roundKeepMusic, state.isOn(.roundKeepMusic)))
     entries.append(.tweakToggle(546, round, "Сохранять копию в галерею", .roundSaveToGallery, state.isOn(.roundSaveToGallery)))
-    entries.append(.tweakInfo(547, round, "60 кадров/с — плавнее, но сильнее грузит батарею. HEVC примерно вдвое легче H.264, но старые клиенты могут не воспроизвести такой кружок. Копия в галерею попросит доступ к Фото."))
+    let appearance = SGExtrasSection.appearance.rawValue
+    entries.append(.tweakHeader(600, appearance, "ОФОРМЛЕНИЕ"))
+    entries.append(.tweakToggle(601, appearance, "Квадратные аватарки", .squareAvatars, state.isOn(.squareAvatars)))
+    entries.append(.tweakToggle(602, appearance, "Скрыть кружки сторис в списке чатов", .hideStoryRings, state.isOn(.hideStoryRings)))
+    entries.append(.tweakToggle(603, appearance, "Снег в списке чатов", .snow, state.isOn(.snow)))
+    entries.append(.tweakInfo(604, appearance, "Аватарки и кружки сторис обновятся при прокрутке или после перезапуска."))
+    entries.append(.tweakHeader(610, appearance, "ПУЗЫРИ СООБЩЕНИЙ"))
+    entries.append(.bubbleTails(611, appearance, "Хвостик у пузырей", state.bubbleTails))
+    var appearanceId: Int32 = 612
+    for radius: Int32 in [4, 8, 12, 16, 20] {
+        let title = "Скругление \(radius)" + (radius == 16 ? " (стандарт)" : "")
+        entries.append(.roundOption(appearanceId, appearance, title, state.bubbleRadius == radius, 3, Int(radius)))
+        appearanceId += 1
+    }
+    entries.append(.tweakHeader(620, appearance, "ЦВЕТ ГАЛОЧЕК"))
+    appearanceId = 621
+    for (title, rgb) in SGExtrasManager.checkColorOptions {
+        entries.append(.roundOption(appearanceId, appearance, title, state.checkColor == rgb, 2, rgb))
+        appearanceId += 1
+    }
+    entries.append(.tweakInfo(630, appearance, "Цвет галочек на исходящих сообщениях применяется после перезапуска приложения."))
+    entries.append(.tweakInfo(547, round,"60 кадров/с — плавнее, но сильнее грузит батарею. HEVC примерно вдвое легче H.264, но старые клиенты могут не воспроизвести такой кружок. Копия в галерею попросит доступ к Фото."))
     return entries
 }
 
@@ -294,11 +327,24 @@ private func sgApplyShadowTheme(context: AccountContext) {
     }).start()
 }
 
+// Bubble shape lives in Telegram's own theme settings, so changing it re-renders open
+// chats right away. The list refreshes once the new presentation data has landed.
+private func sgUpdateBubbleSettings(context: AccountContext, refresh: @escaping () -> Void, _ f: @escaping (inout PresentationChatBubbleSettings) -> Void) {
+    let _ = (updatePresentationThemeSettingsInteractively(accountManager: context.sharedContext.accountManager, { current in
+        var updated = current
+        f(&updated.chatBubbleSettings)
+        return updated
+    })
+    |> deliverOnMainQueue).start(completed: {
+        Queue.mainQueue().after(0.3, refresh)
+    })
+}
+
 public func sgExtrasController(context: AccountContext) -> ViewController {
     var pushControllerImpl: ((ViewController) -> Void)?
-    let statePromise = ValuePromise(SGExtrasState.current(), ignoreRepeated: true)
+    let statePromise = ValuePromise(SGExtrasState.current(context: context), ignoreRepeated: true)
     let refresh: () -> Void = {
-        statePromise.set(SGExtrasState.current())
+        statePromise.set(SGExtrasState.current(context: context))
     }
 
     let arguments = SGExtrasArguments(toggleFakePhone: { value in
@@ -323,12 +369,24 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
         SGExtrasManager.shared.textReplacementRulesText = value
         refresh()
     }, selectRoundOption: { kind, value in
-        if kind == 0 {
+        switch kind {
+        case 0:
             SGExtrasManager.shared.roundResolution = Int32(value)
-        } else {
+        case 1:
             SGExtrasManager.shared.roundBitrateKbps = value
+        case 2:
+            SGExtrasManager.shared.checkColorRGB = value
+        default:
+            sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
+                settings.mainRadius = Int32(value)
+                settings.auxiliaryRadius = max(2, Int32(value) / 2)
+            }
         }
         refresh()
+    }, setBubbleTails: { value in
+        sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
+            settings.hasTails = value
+        }
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

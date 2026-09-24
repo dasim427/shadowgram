@@ -1845,7 +1845,10 @@ public class ChatListItemNode: ItemListRevealOptionsItemNode {
         } else if case let .groupReference(groupReference) = item.content {
             storyState = groupReference.storyState
         }
-        
+        if SGExtrasManager.shared.isOn(.hideStoryRings) {
+            storyState = nil
+        }
+
         var peer: EnginePeer?
         var displayAsMessage = false
         var enablePreview = true

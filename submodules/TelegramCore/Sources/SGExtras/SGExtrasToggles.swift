@@ -16,6 +16,9 @@ public enum SGToggle: String, CaseIterable {
     case roundMuted
     case roundKeepMusic
     case roundSaveToGallery
+    case squareAvatars
+    case hideStoryRings
+    case snow
 }
 
 public extension SGExtrasManager {
@@ -133,5 +136,28 @@ public extension SGExtrasManager {
 
     var roundFrameRate: Double {
         return self.isOn(.round60fps) ? 60.0 : 30.0
+    }
+}
+
+// Shadowgram: appearance values that are not plain switches.
+public extension SGExtrasManager {
+    /// 0xRRGGBB presets for the message check marks; 0 keeps the theme color.
+    static let checkColorOptions: [(String, Int)] = [
+        ("Как в теме", 0),
+        ("Зелёный", 0x34C759),
+        ("Голубой", 0x5AC8FA),
+        ("Фиолетовый", 0xAF52DE),
+        ("Розовый", 0xFF2D55),
+        ("Жёлтый", 0xFFCC00),
+        ("Белый", 0xFFFFFF)
+    ]
+
+    var checkColorRGB: Int {
+        get {
+            return AYGSharedDefaults.store.integer(forKey: "SG.checkColor")
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.checkColor")
+        }
     }
 }

@@ -286,8 +286,8 @@ public final class PrincipalThemeEssentialGraphics {
             self.chatMessageBackgroundOutgoingOutlineImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: false, fillColor: outgoing.fill[0], strokeColor: outgoing.stroke, neighbors: .none, theme: theme, wallpaper: wallpaper, knockout: outgoingKnockout, extendedEdges: true, onlyOutline: true)
             self.chatMessageBackgroundOutgoingExtractedOutlineImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: false, fillColor: outgoing.fill[0], strokeColor: outgoing.stroke, neighbors: .extracted, theme: theme, wallpaper: wallpaper, knockout: outgoingKnockout, extendedEdges: true, onlyOutline: true)
             self.chatMessageBackgroundOutgoingShadowImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: false, fillColor: outgoing.fill[0], strokeColor: outgoing.stroke, neighbors: .none, theme: theme, wallpaper: wallpaper, knockout: outgoingKnockout, extendedEdges: true, onlyShadow: true)
-            self.checkBubbleFullImage = generateCheckImage(partial: false, color: theme.message.outgoingCheckColor, width: 11.0)!
-            self.checkBubblePartialImage = generateCheckImage(partial: true, color: theme.message.outgoingCheckColor, width: 11.0)!
+            self.checkBubbleFullImage = generateCheckImage(partial: false, color: sgCheckColor(theme.message.outgoingCheckColor), width: 11.0)!
+            self.checkBubblePartialImage = generateCheckImage(partial: true, color: sgCheckColor(theme.message.outgoingCheckColor), width: 11.0)!
             self.chatMessageBackgroundIncomingHighlightedImage = emptyImage
             self.chatMessageBackgroundIncomingMergedTopMaskImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: true, fillColor: .black, strokeColor: .clear, neighbors: .top(side: false), theme: theme, wallpaper: .color(0xffffff), knockout: true, mask: true, extendedEdges: true)
             self.chatMessageBackgroundIncomingMergedTopImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: true, fillColor: incoming.fill[0], strokeColor: incoming.stroke, neighbors: .top(side: false), theme: theme, wallpaper: wallpaper, knockout: incomingKnockout, extendedEdges: true)
@@ -467,8 +467,8 @@ public final class PrincipalThemeEssentialGraphics {
             self.chatMessageBackgroundIncomingMergedSideHighlightedImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: true, fillColor: .white, strokeColor: .clear, neighbors: .side, theme: theme, wallpaper: wallpaper, knockout: highlightKnockout, extendedEdges: true, alwaysFillColor: true).withRenderingMode(.alwaysTemplate)
             self.chatMessageBackgroundOutgoingMergedSideHighlightedImage = messageBubbleImage(maxCornerRadius: maxCornerRadius, minCornerRadius: minCornerRadius, incoming: false, fillColor: .white, strokeColor: .clear, neighbors: .side, theme: theme, wallpaper: wallpaper, knockout: highlightKnockout, extendedEdges: true, alwaysFillColor: true).withRenderingMode(.alwaysTemplate)
             
-            self.checkBubbleFullImage = generateCheckImage(partial: false, color: theme.message.outgoingCheckColor, width: 11.0)!
-            self.checkBubblePartialImage = generateCheckImage(partial: true, color: theme.message.outgoingCheckColor, width: 11.0)!
+            self.checkBubbleFullImage = generateCheckImage(partial: false, color: sgCheckColor(theme.message.outgoingCheckColor), width: 11.0)!
+            self.checkBubblePartialImage = generateCheckImage(partial: true, color: sgCheckColor(theme.message.outgoingCheckColor), width: 11.0)!
             
             self.checkMediaFullImage = generateCheckImage(partial: false, color: .white, width: 11.0)!
             self.checkMediaPartialImage = generateCheckImage(partial: true, color: .white, width: 11.0)!
@@ -662,4 +662,13 @@ public final class PrincipalThemeAdditionalGraphics {
         })!
         self.emptyChatListCheckIcon = generateTintedImage(image: UIImage(bundleImageName: "Chat/Empty Chat/ListCheckIcon"), color: serviceColor.primaryText)!
     }
+}
+
+// Shadowgram: user-picked color for the check marks on outgoing bubbles.
+private func sgCheckColor(_ themeColor: UIColor) -> UIColor {
+    let rgb = SGExtrasManager.shared.checkColorRGB
+    if rgb == 0 {
+        return themeColor
+    }
+    return UIColor(rgb: UInt32(rgb))
 }

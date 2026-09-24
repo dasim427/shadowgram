@@ -587,6 +587,7 @@ public final class AvatarNode: ASDisplayNode {
             storeUnrounded: Bool = false,
             cutoutRect: CGRect? = nil
         ) {
+            let clipStyle = sgAvatarClipStyle(clipStyle)
             var synchronousLoad = synchronousLoad
             var representation: TelegramMediaImageRepresentation?
             var icon = AvatarNodeIcon.none
@@ -715,6 +716,7 @@ public final class AvatarNode: ASDisplayNode {
             displayDimensions: CGSize = CGSize(width: 60.0, height: 60.0),
             storeUnrounded: Bool = false
         ) {
+            let clipStyle = sgAvatarClipStyle(clipStyle)
             let smallProfileImage = peer?.smallProfileImage
             let params = Params(
                 peerId: peer?.id,
@@ -794,6 +796,7 @@ public final class AvatarNode: ASDisplayNode {
             storeUnrounded: Bool = false,
             cutoutRect: CGRect? = nil
         ) {
+            let clipStyle = sgAvatarClipStyle(clipStyle)
             var synchronousLoad = synchronousLoad
             var representation: TelegramMediaImageRepresentation?
             var icon = AvatarNodeIcon.none
@@ -1552,3 +1555,12 @@ public final class AvatarNode: ASDisplayNode {
     }
 }
 
+
+// Shadowgram: "square avatars" turns the round crop into the rounded square that
+// Telegram already uses for forums.
+private func sgAvatarClipStyle(_ clipStyle: AvatarNodeClipStyle) -> AvatarNodeClipStyle {
+    if case .round = clipStyle, SGExtrasManager.shared.isOn(.squareAvatars) {
+        return .roundedRect
+    }
+    return clipStyle
+}
