@@ -209,6 +209,7 @@ private struct SGExtrasState: Equatable {
     var bubbleOpacity: Int
     var bubbleOutline: Int
     var customFontName: String?
+    var fontPreset: String?
     var hasChatBackground: Bool
     var gifOpacity: Int
     var bubblePadding: Int
@@ -218,7 +219,7 @@ private struct SGExtrasState: Equatable {
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), fontPreset: sgActiveFontPreset(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -358,12 +359,20 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.link(722, appearance, "Наборы иконок", 9))
     entries.append(.tweakInfo(723, appearance, "Бейдж — своя картинка из слоёв после имени в профиле. Наборы иконок заменяют иконки приложения, их можно устанавливать из .zip, рисовать самому и делиться."))
 
-    entries.append(.tweakHeader(691, appearance, "СВОЙ ШРИФТ"))
-    entries.append(.tweakAction(692, appearance, "Выбрать файл шрифта (.ttf, .otf)", 1))
-    if state.customFontName != nil {
-        entries.append(.tweakAction(693, appearance, "Вернуть системный шрифт", 2))
+    entries.append(.tweakHeader(760, appearance, "ШРИФТ ИНТЕРФЕЙСА"))
+    var fontId: Int32 = 761
+    for (index, preset) in sgFontPresets.enumerated() {
+        let isSelected = preset.family == nil ? (state.fontPreset == nil && state.customFontName == nil) : state.fontPreset == preset.family
+        entries.append(.roundOption(fontId, appearance, preset.title, isSelected, 11, preset.family == nil ? -1 : index))
+        fontId += 1
     }
-    entries.append(.tweakInfo(694, appearance, (state.customFontName.flatMap { "Сейчас: \($0). " } ?? "") + "Шрифт применяется к основным надписям после перезапуска. Если в файле нет кириллицы, русский текст будет системным шрифтом."))
+    entries.append(.tweakInfo(789, appearance, "Шрифты уже встроены в приложение — ничего скачивать не нужно. Применяется после перезапуска. Если в шрифте нет каких-то букв, они показываются системным шрифтом."))
+    entries.append(.tweakHeader(790, appearance, "СВОЙ ФАЙЛ ШРИФТА"))
+    entries.append(.tweakAction(791, appearance, "Выбрать файл шрифта (.ttf, .otf)", 1))
+    if state.customFontName != nil {
+        entries.append(.tweakAction(792, appearance, "Вернуть системный шрифт", 2))
+    }
+    entries.append(.tweakInfo(793, appearance, (state.customFontName.flatMap { "Сейчас: \($0). " } ?? "") + "Шрифт применяется к основным надписям после перезапуска. Если в файле нет кириллицы, русский текст будет системным шрифтом."))
     entries.append(.tweakHeader(670, appearance, "ПРОЗРАЧНОСТЬ ПУЗЫРЕЙ"))
     appearanceId = 671
     for percent in SGExtrasManager.bubbleOpacityOptions {
@@ -471,6 +480,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.gifBackgroundOpacityPercent = value
         case 9:
             SGExtrasManager.shared.bubblePadding = value
+        case 11:
+            sgSetFontPreset(value >= 0 && value < sgFontPresets.count ? sgFontPresets[value].family : nil)
         default:
             sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
                 settings.mainRadius = Int32(value)

@@ -74,6 +74,7 @@ func sgInstallCustomFont(from url: URL) -> String? {
         return nil
     }
 
+    UserDefaults.standard.removeObject(forKey: "SG.fontPreset")
     UserDefaults.standard.set(fileName, forKey: sgCustomFontFileKey)
     UserDefaults.standard.set(name, forKey: sgCustomFontNameKey)
     return name
@@ -83,4 +84,47 @@ func sgResetCustomFont() {
     UserDefaults.standard.removeObject(forKey: sgCustomFontFileKey)
     UserDefaults.standard.removeObject(forKey: sgCustomFontNameKey)
     let _ = try? FileManager.default.removeItem(atPath: NSHomeDirectory() + "/Documents/SGFonts")
+}
+
+// Shadowgram: font presets. The bundled families ship in the app (Google Fonts, OFL);
+// the rest are fonts every iPhone already has. nil means the system font.
+let sgFontPresets: [(title: String, family: String?)] = [
+    ("Системный (SF Pro)", nil),
+    ("Roboto", "Roboto"),
+    ("Open Sans", "Open Sans"),
+    ("Montserrat", "Montserrat"),
+    ("Rubik", "Rubik"),
+    ("Nunito", "Nunito"),
+    ("Raleway", "Raleway"),
+    ("PT Sans", "PT Sans"),
+    ("Comfortaa", "Comfortaa"),
+    ("Unbounded", "Unbounded"),
+    ("Lora", "Lora"),
+    ("PT Serif", "PT Serif"),
+    ("Georgia", "Georgia"),
+    ("Times New Roman", "Times New Roman"),
+    ("JetBrains Mono", "JetBrains Mono"),
+    ("Menlo", "Menlo"),
+    ("Courier New", "Courier New"),
+    ("Caveat (рукописный)", "Caveat"),
+    ("Avenir Next", "Avenir Next"),
+    ("Helvetica Neue", "Helvetica Neue"),
+    ("American Typewriter", "American Typewriter"),
+    ("Noteworthy", "Noteworthy")
+]
+
+private let sgFontPresetKey = "SG.fontPreset"
+
+func sgActiveFontPreset() -> String? {
+    return UserDefaults.standard.string(forKey: sgFontPresetKey)
+}
+
+/// Picking a preset replaces an imported font file, so the two never compete.
+func sgSetFontPreset(_ family: String?) {
+    if let family {
+        UserDefaults.standard.set(family, forKey: sgFontPresetKey)
+    } else {
+        UserDefaults.standard.removeObject(forKey: sgFontPresetKey)
+    }
+    sgResetCustomFont()
 }

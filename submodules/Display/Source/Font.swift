@@ -294,6 +294,27 @@ public struct Font {
         return UIFont(name: name, size: 12.0) != nil ? name : nil
     }()
 
+    // Shadowgram: a bundled or system font family picked from the presets. Variable
+    // fonts get their weight through the wght axis, static families through the bold trait.
+    private static let sgPresetFamily: String? = {
+        guard let family = UserDefaults.standard.string(forKey: "SG.fontPreset"), !family.isEmpty else {
+            return nil
+        }
+        return UIFont.fontNames(forFamilyName: family).isEmpty ? nil : family
+    }()
+
+    private static func sgPresetFont(_ size: CGFloat, weight: CGFloat) -> UIFont? {
+        guard let family = Font.sgPresetFamily else {
+            return nil
+        }
+        let variationKey = UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String)
+        var descriptor = UIFontDescriptor(fontAttributes: [.family: family, variationKey: [NSNumber(value: 0x77676874): NSNumber(value: Double(weight))]])
+        if weight >= 600.0, let bold = descriptor.withSymbolicTraits(.traitBold) {
+            descriptor = bold
+        }
+        return UIFont(descriptor: descriptor, size: size)
+    }
+
     private static func sgCustomFont(_ size: CGFloat) -> UIFont? {
         guard let name = Font.sgCustomFontName else {
             return nil
@@ -302,6 +323,9 @@ public struct Font {
     }
 
     public static func regular(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgPresetFont(size, weight: 400.0) {
+            return font
+        }
         if let font = Font.sgCustomFont(size) {
             return font
         }
@@ -312,6 +336,9 @@ public struct Font {
     }
     
     public static func medium(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgPresetFont(size, weight: 500.0) {
+            return font
+        }
         if let font = Font.sgCustomFont(size) {
             return font
         }
@@ -322,6 +349,9 @@ public struct Font {
     }
     
     public static func semibold(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgPresetFont(size, weight: 600.0) {
+            return font
+        }
         if let font = Font.sgCustomFont(size) {
             return font
         }
@@ -332,6 +362,9 @@ public struct Font {
     }
     
     public static func bold(_ size: CGFloat) -> UIFont {
+        if let font = Font.sgPresetFont(size, weight: 700.0) {
+            return font
+        }
         if let font = Font.sgCustomFont(size) {
             return font
         }

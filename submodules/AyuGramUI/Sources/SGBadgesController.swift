@@ -15,19 +15,20 @@ private enum SGBadgesEntry: ItemListNodeEntry {
     case header(Int32, String)
     case showToggle(Int32, Bool)
     case badge(Int32, SGBadge, Bool)
+    case preset(Int32, SGBadge)
     case action(Int32, String, Int)
     case info(Int32, String)
 
     var section: ItemListSectionId {
         switch self {
-        case .header(let id, _), .showToggle(let id, _), .badge(let id, _, _), .action(let id, _, _), .info(let id, _):
+        case .header(let id, _), .showToggle(let id, _), .badge(let id, _, _), .preset(let id, _), .action(let id, _, _), .info(let id, _):
             return id / 100
         }
     }
 
     var stableId: Int32 {
         switch self {
-        case .header(let id, _), .showToggle(let id, _), .badge(let id, _, _), .action(let id, _, _), .info(let id, _):
+        case .header(let id, _), .showToggle(let id, _), .badge(let id, _, _), .preset(let id, _), .action(let id, _, _), .info(let id, _):
             return id
         }
     }
@@ -50,6 +51,11 @@ private enum SGBadgesEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, icon: icon, title: badge.name, label: isActive ? "выбран" : "", sectionId: self.section, style: .blocks, action: {
                 arguments.openBadge(badge)
             })
+        case let .preset(_, badge):
+            let icon = sgRenderBadge(badge, height: 22.0, scale: UIScreen.main.scale)
+            return ItemListDisclosureItem(presentationData: presentationData, icon: icon, title: badge.name, label: "Поставить", sectionId: self.section, style: .blocks, action: {
+                arguments.addPreset(badge)
+            })
         case let .action(_, title, kind):
             return ItemListActionItem(presentationData: presentationData, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
                 arguments.performAction(kind)
@@ -64,8 +70,10 @@ private final class SGBadgesArguments {
     let setShown: (Bool) -> Void
     let openBadge: (SGBadge) -> Void
     let performAction: (Int) -> Void
+    let addPreset: (SGBadge) -> Void
 
-    init(setShown: @escaping (Bool) -> Void, openBadge: @escaping (SGBadge) -> Void, performAction: @escaping (Int) -> Void) {
+    init(setShown: @escaping (Bool) -> Void, openBadge: @escaping (SGBadge) -> Void, performAction: @escaping (Int) -> Void, addPreset: @escaping (SGBadge) -> Void) {
+        self.addPreset = addPreset
         self.setShown = setShown
         self.openBadge = openBadge
         self.performAction = performAction
@@ -98,14 +106,22 @@ private func sgBadgesEntries(state: SGBadgesState) -> [SGBadgesEntry] {
         entries.append(.info(199, "Пока нет ни одного бейджа. Создай свой или открой готовый файл."))
     }
 
-    entries.append(.header(200, "ДОБАВИТЬ"))
-    entries.append(.action(201, "Создать свой бейдж", 0))
-    entries.append(.action(202, "Открыть бейдж или картинку из файлов", 1))
-    entries.append(.action(203, "Скачать бейдж по ссылке", 2))
-    if state.activeId != nil {
-        entries.append(.action(204, "Убрать бейдж из профиля", 3))
+    entries.append(.header(300, "ГОТОВЫЕ БЕЙДЖИ"))
+    var presetId: Int32 = 301
+    for badge in sgBadgePresets() {
+        entries.append(.preset(presetId, badge))
+        presetId += 1
     }
-    entries.append(.info(205, "Картинка из файла или по ссылке станет новым бейджем с одним слоем — поверх можно дописать текст или добавить ещё картинок. Файл .sgbadge импортируется целиком со всеми слоями."))
+    entries.append(.info(399, "Нажми, чтобы поставить бейдж в профиль. Он добавится в «Мои бейджи» — там его можно изменить в редакторе."))
+
+    entries.append(.header(400, "ДОБАВИТЬ"))
+    entries.append(.action(401, "Создать свой бейдж", 0))
+    entries.append(.action(402, "Открыть бейдж или картинку из файлов", 1))
+    entries.append(.action(403, "Скачать бейдж по ссылке", 2))
+    if state.activeId != nil {
+        entries.append(.action(404, "Убрать бейдж из профиля", 3))
+    }
+    entries.append(.info(405, "Картинка из файла или по ссылке станет новым бейджем с одним слоем — поверх можно дописать текст или добавить ещё картинок. Файл .sgbadge импортируется целиком со всеми слоями."))
     return entries
 }
 
@@ -245,6 +261,15 @@ public func sgBadgesController(context: AccountContext) -> ViewController {
             sgSetActiveBadge(nil)
             refresh()
         }
+    }, addPreset: { preset in
+        var badge = preset
+        badge.id = UUID().uuidString
+        for index in badge.layers.indices {
+            badge.layers[index].id = UUID().uuidString
+        }
+        sgSaveBadge(badge)
+        sgSetActiveBadge(badge)
+        refresh()
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

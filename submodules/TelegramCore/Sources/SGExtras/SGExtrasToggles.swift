@@ -274,3 +274,57 @@ public extension SGExtrasManager {
         return text
     }
 }
+
+// Shadowgram: ready-made styles for the colored settings icons, applied where Telegram
+// draws them (renderSettingsIcon).
+public enum SGSettingsIconStyle: Int, CaseIterable {
+    case standard = 0
+    case round
+    case square
+    case monochrome
+    case pastel
+    case neon
+    case outline
+
+    public var title: String {
+        switch self {
+        case .standard:
+            return "Стандартные"
+        case .round:
+            return "Круглые"
+        case .square:
+            return "Квадратные"
+        case .monochrome:
+            return "Монохром"
+        case .pastel:
+            return "Пастель"
+        case .neon:
+            return "Неон"
+        case .outline:
+            return "Контур"
+        }
+    }
+
+    /// Corner radius of the 30x30 plate.
+    public var cornerRadius: Double {
+        switch self {
+        case .round:
+            return 15.0
+        case .square:
+            return 3.0
+        default:
+            return 8.0
+        }
+    }
+}
+
+public extension SGExtrasManager {
+    var settingsIconStyle: SGSettingsIconStyle {
+        get {
+            return SGSettingsIconStyle(rawValue: AYGSharedDefaults.store.integer(forKey: "SG.settingsIconStyle")) ?? .standard
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue.rawValue, forKey: "SG.settingsIconStyle")
+        }
+    }
+}

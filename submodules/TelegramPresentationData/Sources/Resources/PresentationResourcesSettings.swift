@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import Display
 import AppBundle
+import TelegramCore
 
 private let gradientImage = UIImage(bundleImageName: "Item List/Icons/Gradient")
 private let backdropImage = UIImage(bundleImageName: "Item List/Icons/Backdrop")
@@ -11,20 +12,46 @@ public func renderSettingsIcon(name: String, scaleFactor: CGFloat = 1.0, backgro
         context.clear(bounds)
         
         if let backgroundColors {
-            var locations: [CGFloat] = [0.0, 1.0]
-            let colors: [CGColor] = backgroundColors.map(\.cgColor)
+            // Shadowgram: settings icon style presets (shape, plate and glyph color).
+            let sgStyle = SGExtrasManager.shared.settingsIconStyle
+            var effectiveColors = backgroundColors
+            var glyphColor = UIColor.white
+            var drawsPlate = true
+            var decoratesPlate = true
+            switch sgStyle {
+            case .monochrome:
+                effectiveColors = [UIColor(rgb: 0x8E8E93), UIColor(rgb: 0x5A5A5F)]
+            case .pastel:
+                effectiveColors = backgroundColors.map { $0.mixedWith(.white, alpha: 0.45) }
+            case .neon:
+                glyphColor = backgroundColors.first ?? .white
+                effectiveColors = [UIColor(rgb: 0x1C1C1E), UIColor(rgb: 0x2C2C2E)]
+                decoratesPlate = false
+            case .outline:
+                glyphColor = backgroundColors.first ?? .white
+                drawsPlate = false
+                decoratesPlate = false
+            default:
+                break
+            }
+            let plateCornerRadius = CGFloat(sgStyle.cornerRadius)
+
+            if drawsPlate {
+                var locations: [CGFloat] = [0.0, 1.0]
+                let colors: [CGColor] = effectiveColors.map { $0.cgColor }
+                
+                let colorSpace = CGColorSpaceCreateDeviceRGB()
+                let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: &locations)!
+                
+                context.drawLinearGradient(gradient, start: CGPoint(x: size.width, y: size.height), end: CGPoint(x: 0.0, y: 0.0), options: CGGradientDrawingOptions())
+            }
             
-            let colorSpace = CGColorSpaceCreateDeviceRGB()
-            let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: &locations)!
-            
-            context.drawLinearGradient(gradient, start: CGPoint(x: size.width, y: size.height), end: CGPoint(x: 0.0, y: 0.0), options: CGGradientDrawingOptions())
-            
-            if let gradientImage, let cgImage = gradientImage.cgImage {
+            if decoratesPlate, let gradientImage, let cgImage = gradientImage.cgImage {
                 context.setBlendMode(.plusLighter)
                 context.draw(cgImage, in: CGRect(origin: .zero, size: size))
             }
             
-            if let backdropImage, let cgImage = backdropImage.cgImage {
+            if decoratesPlate, let backdropImage, let cgImage = backdropImage.cgImage {
                 context.setBlendMode(.overlay)
                 context.draw(cgImage, in: CGRect(origin: CGPoint(x: 0.0, y: 0.0), size: size))
             }
@@ -37,13 +64,20 @@ public func renderSettingsIcon(name: String, scaleFactor: CGFloat = 1.0, backgro
                 
                 context.saveGState()
                 context.clip(to: imageRect, mask: maskImage)
-                context.setFillColor(UIColor.white.cgColor)
+                context.setFillColor(glyphColor.cgColor)
                 context.fill(imageRect)
                 context.restoreGState()
             }
             
+            if case .outline = sgStyle {
+                context.setStrokeColor(glyphColor.cgColor)
+                context.setLineWidth(1.5)
+                context.addPath(UIBezierPath(roundedRect: bounds.insetBy(dx: 0.75, dy: 0.75), cornerRadius: max(0.0, plateCornerRadius - 0.75)).cgPath)
+                context.strokePath()
+            }
+            
             let outerPath = UIBezierPath(rect: CGRect(origin: .zero, size: size))
-            let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 8.0)
+            let innerPath = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: plateCornerRadius)
             outerPath.append(innerPath)
 
             context.saveGState()

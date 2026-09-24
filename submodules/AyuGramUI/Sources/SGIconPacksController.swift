@@ -17,17 +17,18 @@ private enum SGIconPacksEntry: ItemListNodeEntry {
     case pack(Int32, SGIconPack, String)
     case action(Int32, String, Int)
     case info(Int32, String)
+    case style(Int32, String, Bool, Int)
 
     var section: ItemListSectionId {
         switch self {
-        case .header(let id, _), .pack(let id, _, _), .action(let id, _, _), .info(let id, _):
+        case .header(let id, _), .pack(let id, _, _), .action(let id, _, _), .info(let id, _), .style(let id, _, _, _):
             return id / 1000
         }
     }
 
     var stableId: Int32 {
         switch self {
-        case .header(let id, _), .pack(let id, _, _), .action(let id, _, _), .info(let id, _):
+        case .header(let id, _), .pack(let id, _, _), .action(let id, _, _), .info(let id, _), .style(let id, _, _, _):
             return id
         }
     }
@@ -51,6 +52,10 @@ private enum SGIconPacksEntry: ItemListNodeEntry {
             })
         case let .info(_, text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .style(_, title, checked, value):
+            return ItemListCheckboxItem(presentationData: presentationData, title: title, style: .right, checked: checked, zeroSeparatorInsets: false, sectionId: self.section, action: {
+                arguments.setStyle(value)
+            })
         }
     }
 }
@@ -58,8 +63,10 @@ private enum SGIconPacksEntry: ItemListNodeEntry {
 private final class SGIconPacksArguments {
     let openPack: (SGIconPack) -> Void
     let performAction: (Int) -> Void
+    let setStyle: (Int) -> Void
 
-    init(openPack: @escaping (SGIconPack) -> Void, performAction: @escaping (Int) -> Void) {
+    init(openPack: @escaping (SGIconPack) -> Void, performAction: @escaping (Int) -> Void, setStyle: @escaping (Int) -> Void) {
+        self.setStyle = setStyle
         self.openPack = openPack
         self.performAction = performAction
     }
@@ -69,18 +76,26 @@ private struct SGIconPacksState: Equatable {
     var packs: [SGIconPack]
     var enabled: [String]
     var base: String?
+    var style: Int
 
     static func current() -> SGIconPacksState {
-        return SGIconPacksState(packs: sgInstalledIconPacks(), enabled: sgEnabledIconPackIds(), base: sgBaseIconPackId())
+        return SGIconPacksState(packs: sgInstalledIconPacks(), enabled: sgEnabledIconPackIds(), base: sgBaseIconPackId(), style: SGExtrasManager.shared.settingsIconStyle.rawValue)
     }
 }
 
 private func sgIconPacksEntries(state: SGIconPacksState) -> [SGIconPacksEntry] {
     var entries: [SGIconPacksEntry] = []
+    entries.append(.header(0, "ГОТОВЫЕ СТИЛИ ИКОНОК НАСТРОЕК"))
+    var styleId: Int32 = 1
+    for style in SGSettingsIconStyle.allCases {
+        entries.append(.style(styleId, style.title, state.style == style.rawValue, style.rawValue))
+        styleId += 1
+    }
+    entries.append(.info(99, "Перерисовывает цветные иконки в настройках: форма, цвет фона и значка. Работает сразу, без установки наборов. Применяется после перезапуска."))
     let packsById = Dictionary(state.packs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-    entries.append(.header(0, "ВКЛЮЧЁННЫЕ НАБОРЫ"))
-    var id: Int32 = 1
+    entries.append(.header(1000, "ВКЛЮЧЁННЫЕ НАБОРЫ"))
+    var id: Int32 = 1001
     for (index, packId) in state.enabled.prefix(400).enumerated() {
         if let pack = packsById[packId] {
             let base = state.base == packId ? " · базовый" : ""
@@ -89,25 +104,25 @@ private func sgIconPacksEntries(state: SGIconPacksState) -> [SGIconPacksEntry] {
         }
     }
     if state.enabled.isEmpty {
-        entries.append(.info(900, "Ни один набор не включён — везде стандартные иконки."))
+        entries.append(.info(1900, "Ни один набор не включён — везде стандартные иконки."))
     } else {
-        entries.append(.info(901, "Иконка берётся из первого включённого набора, в котором она есть. Порядок меняется в меню набора."))
+        entries.append(.info(1901, "Иконка берётся из первого включённого набора, в котором она есть. Порядок меняется в меню набора."))
     }
 
-    entries.append(.header(1000, "ВСЕ НАБОРЫ"))
-    id = 1001
+    entries.append(.header(2000, "ВСЕ НАБОРЫ"))
+    id = 2001
     for pack in state.packs.prefix(400) where !state.enabled.contains(pack.id) {
         let base = state.base == pack.id ? "базовый · " : ""
         entries.append(.pack(id, pack, "\(base)выключен · \(pack.iconCount) шт."))
         id += 1
     }
-    entries.append(.info(1900, "Нажмите на набор, чтобы включить или выключить его, поменять порядок, сделать базовым, изменить иконки, поделиться или удалить. Базовый набор используется для иконок, которых нет ни в одном включённом наборе."))
+    entries.append(.info(2900, "Нажмите на набор, чтобы включить или выключить его, поменять порядок, сделать базовым, изменить иконки, поделиться или удалить. Базовый набор используется для иконок, которых нет ни в одном включённом наборе."))
 
-    entries.append(.header(2000, "ДОБАВИТЬ"))
-    entries.append(.action(2001, "Установить набор (.zip или папка)", 0))
-    entries.append(.action(2002, "Новый набор иконок", 1))
-    entries.append(.action(2003, "Выгрузить список имён иконок", 2))
-    entries.append(.info(2004, "Набор — это .zip с metadata.json ({\"name\": \"Название\"}) и PNG-файлами, названными как иконки приложения. Если установить набор с тем же названием, он обновится. Иконки меняются после перезапуска приложения."))
+    entries.append(.header(3000, "ДОБАВИТЬ"))
+    entries.append(.action(3001, "Установить набор (.zip или папка)", 0))
+    entries.append(.action(3002, "Новый набор иконок", 1))
+    entries.append(.action(3003, "Выгрузить список имён иконок", 2))
+    entries.append(.info(3004, "Набор — это .zip с metadata.json ({\"name\": \"Название\"}) и PNG-файлами, названными как иконки приложения. Если установить набор с тем же названием, он обновится. Иконки меняются после перезапуска приложения."))
     return entries
 }
 
@@ -243,6 +258,9 @@ public func sgIconPacksController(context: AccountContext) -> ViewController {
         default:
             sgShareIconNameList(from: host)
         }
+    }, setStyle: { value in
+        SGExtrasManager.shared.settingsIconStyle = SGSettingsIconStyle(rawValue: value) ?? .standard
+        refresh()
     })
 
     let signal = combineLatest(context.sharedContext.presentationData, statePromise.get())

@@ -1662,6 +1662,21 @@ plist_fragment(
     <array>
         <string>AremacFS-Regular.otf</string>
         <string>AremacFS-Semibold.otf</string>
+        <string>SG-Caveat.ttf</string>
+        <string>SG-Comfortaa.ttf</string>
+        <string>SG-JetBrainsMono.ttf</string>
+        <string>SG-Lora.ttf</string>
+        <string>SG-Montserrat.ttf</string>
+        <string>SG-Nunito.ttf</string>
+        <string>SG-OpenSans.ttf</string>
+        <string>SG-PT_Sans-Web-Bold.ttf</string>
+        <string>SG-PT_Sans-Web-Regular.ttf</string>
+        <string>SG-PT_Serif-Web-Bold.ttf</string>
+        <string>SG-PT_Serif-Web-Regular.ttf</string>
+        <string>SG-Raleway.ttf</string>
+        <string>SG-Roboto.ttf</string>
+        <string>SG-Rubik.ttf</string>
+        <string>SG-Unbounded.ttf</string>
     </array>
     <key>UIBackgroundModes</key>
     <array>

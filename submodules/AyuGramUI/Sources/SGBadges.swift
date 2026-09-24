@@ -253,3 +253,42 @@ func sgBadgeExportURL(_ badge: SGBadge) -> URL? {
     }
     return url
 }
+
+// MARK: - Presets
+
+/// Ready-made badges: an emoji and a word on a colored plate, or a lone emoji.
+func sgBadgePresets() -> [SGBadge] {
+    func plate(_ id: String, _ name: String, _ text: String, background: Int, textColor: Int) -> SGBadge {
+        var layer = SGBadgeLayer.text(text)
+        layer.id = "preset-layer-" + id
+        layer.textColor = textColor
+        layer.scale = 0.9
+        return SGBadge(id: "preset-" + id, name: name, backgroundColor: background, cornerRadius: 0.5, aspect: 3.0, layers: [layer])
+    }
+    func emoji(_ id: String, _ name: String, _ text: String) -> SGBadge {
+        var layer = SGBadgeLayer.text(text)
+        layer.id = "preset-layer-" + id
+        layer.scale = 1.5
+        return SGBadge(id: "preset-" + id, name: name, backgroundColor: -1, cornerRadius: 0.0, aspect: 1.0, layers: [layer])
+    }
+    return [
+        plate("vip", "VIP", "👑 VIP", background: 0xFFB800, textColor: 0x1A1A1A),
+        plate("fire", "Огонь", "🔥 Огонь", background: 0xFF5A1F, textColor: 0xFFFFFF),
+        plate("pro", "PRO", "⚡ PRO", background: 0x7B5CFF, textColor: 0xFFFFFF),
+        plate("ghost", "Призрак", "👻 Призрак", background: 0x1C1238, textColor: 0xFFFFFF),
+        plate("legend", "Легенда", "💎 Легенда", background: 0x2F80ED, textColor: 0xFFFFFF),
+        plate("admin", "Админ", "🛡 Админ", background: 0x2EAD5B, textColor: 0xFFFFFF),
+        plate("gamer", "Геймер", "🎮 Геймер", background: 0x9B51E0, textColor: 0xFFFFFF),
+        plate("night", "Ночь", "🌙 Ночь", background: 0x0B1F3A, textColor: 0xFFFFFF),
+        plate("star", "Звезда", "⭐ Звезда", background: 0xFFCC00, textColor: 0x1A1A1A),
+        plate("dev", "Dev", "💻 Dev", background: 0x24292E, textColor: 0x7EE787),
+        plate("love", "Love", "💗 Love", background: 0xFF2D78, textColor: 0xFFFFFF),
+        plate("boss", "Босс", "😎 Босс", background: 0x000000, textColor: 0xFFD60A),
+        emoji("heart", "Сердце", "❤️"),
+        emoji("crown", "Корона", "👑"),
+        emoji("skull", "Череп", "💀"),
+        emoji("wolf", "Волк", "🐺"),
+        emoji("lightning", "Молния", "⚡"),
+        emoji("rocket", "Ракета", "🚀")
+    ]
+}
