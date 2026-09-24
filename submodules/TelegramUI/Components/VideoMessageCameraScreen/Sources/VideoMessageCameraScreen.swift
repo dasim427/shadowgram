@@ -878,6 +878,9 @@ public class VideoMessageCameraScreen: ViewController {
         fileprivate var mainPreviewView: CameraSimplePreviewView
         fileprivate var additionalPreviewView: CameraSimplePreviewView
         private var progressView: RecordingProgressView
+        // Shadowgram: masked camera frames over the raw preview, and the mask picker.
+        private let sgMaskOverlayView = UIImageView()
+        private let sgMaskStrip = SGMaskStripView(frame: .zero)
         private let loadingView: LoadingEffectView
         
         private var resultPreviewView: ResultPreviewView?
@@ -995,6 +998,19 @@ public class VideoMessageCameraScreen: ViewController {
             if isDualCameraEnabled {
                 self.previewContainerContentView.addSubview(self.additionalPreviewView)
             }
+            self.sgMaskOverlayView.contentMode = .scaleAspectFill
+            self.sgMaskOverlayView.clipsToBounds = true
+            self.sgMaskOverlayView.isUserInteractionEnabled = false
+            self.sgMaskOverlayView.isHidden = true
+            self.previewContainerContentView.addSubview(self.sgMaskOverlayView)
+            self.containerView.addSubview(self.sgMaskStrip)
+            SGMaskPreview.shared.setHandler({ [weak self] image in
+                guard let self else {
+                    return
+                }
+                self.sgMaskOverlayView.image = image
+                self.sgMaskOverlayView.isHidden = image == nil
+            })
             self.previewContainerContentView.addSubview(self.progressView)
             self.previewContainerContentView.addSubview(self.previewBlurView)
             self.previewContainerContentView.addSubview(self.loadingView)
@@ -1022,6 +1038,7 @@ public class VideoMessageCameraScreen: ViewController {
         }
         
         deinit {
+            SGMaskPreview.shared.setHandler(nil)
             self.cameraStateDisposable?.dispose()
             self.idleTimerExtensionDisposable.dispose()
             self.backgroundView.removeFromSuperview()
@@ -1545,6 +1562,15 @@ public class VideoMessageCameraScreen: ViewController {
             
             self.progressView.frame = previewBounds
             self.progressView.value = CGFloat(self.cameraState.duration / 60.0)
+
+            // Shadowgram: the masked frames sit exactly over the front camera preview,
+            // and the mask picker floats above the circle while recording is possible.
+            self.sgMaskOverlayView.frame = self.cameraState.isDualCameraEnabled ? additionalPreviewInnerFrame : self.mainPreviewView.frame
+            self.sgMaskOverlayView.alpha = self.cameraState.position == .front ? 1.0 : 0.0
+            let sgStripHeight: CGFloat = 40.0
+            let sgStripY = max((layout.statusBarHeight ?? 20.0) + 4.0, previewFrame.minY - sgStripHeight - 10.0)
+            self.sgMaskStrip.frame = CGRect(x: 0.0, y: sgStripY, width: layout.size.width, height: sgStripHeight)
+            self.sgMaskStrip.isHidden = !SGExtrasManager.shared.roundMasksEnabled || self.previewState != nil
             
             transition.setAlpha(view: self.additionalPreviewView, alpha: self.cameraState.position == .front ? 1.0 : 0.0)
             

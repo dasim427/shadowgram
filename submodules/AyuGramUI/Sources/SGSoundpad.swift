@@ -82,7 +82,49 @@ func sgPlaySound(_ sound: SGSound) -> Bool {
         return false
     }
     SGCallAudioEffects.playPCM16Mono48k(data)
+    // Also play it here, so the user hears what the other side hears.
+    sgLocalSoundPlayer?.stop()
+    sgLocalSoundPlayer = try? AVAudioPlayer(data: sgWavData(pcm16Mono48k: data))
+    sgLocalSoundPlayer?.volume = SGCallAudioEffects.soundVolume()
+    sgLocalSoundPlayer?.play()
     return true
+}
+
+func sgStopSound() {
+    SGCallAudioEffects.stopSound()
+    sgLocalSoundPlayer?.stop()
+    sgLocalSoundPlayer = nil
+}
+
+private var sgLocalSoundPlayer: AVAudioPlayer?
+
+/// Wraps raw 16-bit mono 48 kHz samples in a WAV header for AVAudioPlayer.
+private func sgWavData(pcm16Mono48k pcm: Data) -> Data {
+    var data = Data()
+    func append32(_ value: UInt32) {
+        var little = value.littleEndian
+        withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+    }
+    func append16(_ value: UInt16) {
+        var little = value.littleEndian
+        withUnsafeBytes(of: &little) { data.append(contentsOf: $0) }
+    }
+    let sampleRate: UInt32 = 48000
+    data.append(contentsOf: Array("RIFF".utf8))
+    append32(UInt32(36 + pcm.count))
+    data.append(contentsOf: Array("WAVE".utf8))
+    data.append(contentsOf: Array("fmt ".utf8))
+    append32(16)
+    append16(1)
+    append16(1)
+    append32(sampleRate)
+    append32(sampleRate * 2)
+    append16(2)
+    append16(16)
+    data.append(contentsOf: Array("data".utf8))
+    append32(UInt32(pcm.count))
+    data.append(pcm)
+    return data
 }
 
 // MARK: - Decoding

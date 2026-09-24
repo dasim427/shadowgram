@@ -39,11 +39,19 @@ typedef NS_ENUM(NSInteger, SGCallVoicePreset) {
 + (void)stopSound;
 + (BOOL)isPlayingSound;
 
+/// Diagnostics: how many microphone chunks reached the call hook, and how many of them
+/// went through the effects, since the app started.
++ (NSInteger)capturedChunkCount;
++ (NSInteger)processedChunkCount;
+
 @end
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/// Counts a microphone chunk arriving at the call hook.
+void SGCallAudioEffectsNoteCapture(void);
 
 /// Whether the call audio needs to go through SGCallAudioEffectsProcess at all.
 bool SGCallAudioEffectsIsActive(void);

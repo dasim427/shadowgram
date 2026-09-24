@@ -23,6 +23,8 @@ std::mutex sgSoundMutex;
 std::vector<int16_t> sgSound;
 double sgSoundPosition = 0.0;
 std::atomic<bool> sgSoundPlaying{false};
+std::atomic<long> sgCapturedChunks{0};
+std::atomic<long> sgProcessedChunks{0};
 
 /// Pitch shifting with two read heads sweeping through a short delay line, crossfaded
 /// with complementary sin² windows. About one window (~40 ms) of latency.
@@ -135,32 +137,34 @@ Biquad sgLowPass;
 double sgRingPhase = 0.0;
 int sgLastPreset = -1;
 
-int currentPreset() {
-    int value = sgPreset.load();
-    if (value < 0) {
-        value = (int)[[NSUserDefaults standardUserDefaults] integerForKey:kSGVoicePresetKey];
-        sgPreset.store(value);
+std::atomic<double> sgLastSettingsRead{0.0};
+
+void reloadSettingsIfNeeded() {
+    const double now = CFAbsoluteTimeGetCurrent();
+    if (sgPreset.load() >= 0 && now - sgLastSettingsRead.load() < 1.0) {
+        return;
     }
-    return value;
+    sgLastSettingsRead.store(now);
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    sgPreset.store((int)[defaults integerForKey:kSGVoicePresetKey]);
+    sgSilent.store([defaults boolForKey:kSGSilentMicKey] ? 1 : 0);
+    NSNumber *storedVolume = [defaults objectForKey:kSGSoundVolumeKey];
+    sgSoundVolume.store(storedVolume != nil ? storedVolume.floatValue : 0.8f);
+}
+
+int currentPreset() {
+    reloadSettingsIfNeeded();
+    return sgPreset.load();
 }
 
 bool currentSilent() {
-    int value = sgSilent.load();
-    if (value < 0) {
-        value = [[NSUserDefaults standardUserDefaults] boolForKey:kSGSilentMicKey] ? 1 : 0;
-        sgSilent.store(value);
-    }
-    return value != 0;
+    reloadSettingsIfNeeded();
+    return sgSilent.load() != 0;
 }
 
 float currentSoundVolume() {
-    float value = sgSoundVolume.load();
-    if (value < 0.0f) {
-        NSNumber *stored = [[NSUserDefaults standardUserDefaults] objectForKey:kSGSoundVolumeKey];
-        value = stored != nil ? stored.floatValue : 0.8f;
-        sgSoundVolume.store(value);
-    }
-    return value;
+    reloadSettingsIfNeeded();
+    return sgSoundVolume.load();
 }
 
 /// Semitones to a frequency ratio.
@@ -219,7 +223,19 @@ double ratioForSemitones(double semitones) {
     return sgSoundPlaying.load();
 }
 
++ (NSInteger)capturedChunkCount {
+    return (NSInteger)sgCapturedChunks.load();
+}
+
++ (NSInteger)processedChunkCount {
+    return (NSInteger)sgProcessedChunks.load();
+}
+
 @end
+
+void SGCallAudioEffectsNoteCapture(void) {
+    sgCapturedChunks.fetch_add(1);
+}
 
 bool SGCallAudioEffectsIsActive(void) {
     return currentPreset() != SGCallVoicePresetOff || currentSilent() || sgSoundPlaying.load();
@@ -229,6 +245,7 @@ void SGCallAudioEffectsProcess(int16_t *samples, size_t frames, size_t channels,
     if (samples == nullptr || frames == 0 || channels == 0 || sampleRate == 0) {
         return;
     }
+    sgProcessedChunks.fetch_add(1);
     const int preset = currentPreset();
     const bool silent = currentSilent();
     const double rate = (double)sampleRate;

@@ -695,7 +695,13 @@ extension CameraOutput: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureA
         } else {
             self.processVideoRecording(sampleBuffer, fromAdditionalOutput: false)
         }
-        
+
+        // Shadowgram: live mask preview on the round video camera.
+        if sampleBuffer.type == kCMMediaType_Video, SGMaskPreview.shared.isActive {
+            let isFront = self.masterOutput != nil || (self.exclusive && self.currentPosition == .front)
+            SGMaskPreview.shared.process(sampleBuffer, isFront: isFront)
+        }
+
         if let videoPixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             self.processSampleBuffer?(sampleBuffer, videoPixelBuffer, connection)
         } else if sampleBuffer.type == kCMMediaType_Audio {

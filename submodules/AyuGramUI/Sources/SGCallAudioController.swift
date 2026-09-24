@@ -91,9 +91,11 @@ private struct SGCallAudioState: Equatable {
     var silent: Bool
     var volume: Int
     var userSounds: [SGSound]
+    var capturedChunks: Int
+    var processedChunks: Int
 
     static func current() -> SGCallAudioState {
-        return SGCallAudioState(voice: SGCallAudioEffects.voicePreset().rawValue, silent: SGCallAudioEffects.silentMicrophone(), volume: Int((SGCallAudioEffects.soundVolume() * 100.0).rounded()), userSounds: sgUserSounds())
+        return SGCallAudioState(voice: SGCallAudioEffects.voicePreset().rawValue, silent: SGCallAudioEffects.silentMicrophone(), volume: Int((SGCallAudioEffects.soundVolume() * 100.0).rounded()), userSounds: sgUserSounds(), capturedChunks: SGCallAudioEffects.capturedChunkCount(), processedChunks: SGCallAudioEffects.processedChunkCount())
     }
 }
 
@@ -148,6 +150,9 @@ private func sgCallAudioEntries(state: SGCallAudioState) -> [SGCallAudioEntry] {
         entries.append(.action(402, "Удалить свой звук", 2))
     }
     entries.append(.info(403, "Подойдут MP3, M4A, WAV и другие аудиофайлы, до 30 секунд — длиннее обрежется."))
+
+    entries.append(.header(500, "СОСТОЯНИЕ"))
+    entries.append(.info(501, "Звук микрофона в звонках: получено \(state.capturedChunks), обработано \(state.processedChunks). Во время звонка первое число должно расти каждую секунду; второе растёт, когда включён голос, тихий микрофон или играет звук."))
     return entries
 }
 
@@ -186,7 +191,7 @@ public func sgCallAudioController(context: AccountContext) -> ViewController {
         }
         switch kind {
         case 0:
-            SGCallAudioEffects.stopSound()
+            sgStopSound()
         case 1:
             if #available(iOS 14.0, *) {
                 SGSoundFilePicker.present(from: host, completion: { success in
@@ -224,5 +229,13 @@ public func sgCallAudioController(context: AccountContext) -> ViewController {
     hostControllerImpl = { [weak controller] in
         return controller
     }
+    // Keep the status counters live while the page is open.
+    let _ = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true, block: { [weak controller] timer in
+        if controller == nil {
+            timer.invalidate()
+        } else {
+            refresh()
+        }
+    })
     return controller
 }

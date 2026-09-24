@@ -491,6 +491,7 @@ public:
         // Shadowgram: voice presets, soundpad and the silent microphone.
         const void *sgEffectiveSamples = audioSamples;
         std::vector<int16_t> sgProcessedSamples;
+        SGCallAudioEffectsNoteCapture();
         if (SGCallAudioEffectsIsActive() && nChannels > 0 && nBytesPerSample == 2 * nChannels) {
             const int16_t *sgSource = (const int16_t *)audioSamples;
             sgProcessedSamples.assign(sgSource, sgSource + nSamples * nChannels);
@@ -534,6 +535,7 @@ public:
         // Shadowgram: voice presets, soundpad and the silent microphone.
         const void *sgEffectiveSamples = audioSamples;
         std::vector<int16_t> sgProcessedSamples;
+        SGCallAudioEffectsNoteCapture();
         if (SGCallAudioEffectsIsActive() && nChannels > 0 && nBytesPerSample == 2 * nChannels) {
             const int16_t *sgSource = (const int16_t *)audioSamples;
             sgProcessedSamples.assign(sgSource, sgSource + nSamples * nChannels);
