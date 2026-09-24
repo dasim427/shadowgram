@@ -206,13 +206,14 @@ private struct SGExtrasState: Equatable {
     var customFontName: String?
     var hasChatBackground: Bool
     var gifOpacity: Int
+    var bubblePadding: Int
 
     static func current(context: AccountContext) -> SGExtrasState {
         let bubbleSettings = context.sharedContext.currentPresentationData.with { $0 }.chatBubbleCorners
         let manager = SGExtrasManager.shared
         let voiceMorpherLabel = VoiceMorpherManager.shared.isEnabled ? VoiceMorpherManager.shared.selectedPreset.name : "Выкл"
         let enabledToggles = Set(SGToggle.allCases.filter { manager.isOn($0) }.map { $0.rawValue })
-        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent)
+        return SGExtrasState(fakePhoneEnabled: manager.fakePhoneEnabled, fakePhoneNumber: manager.fakePhoneNumber, pollPeekEnabled: manager.pollPeekEnabled, voiceMorpherLabel: voiceMorpherLabel, deviceSpoofEnabled: DeviceSpoofManager.shared.isEnabled, enabledToggles: enabledToggles, replacementRules: manager.textReplacementRulesText, roundResolution: manager.roundResolution, roundBitrate: manager.roundBitrateKbps, checkColor: manager.checkColorRGB, bubbleRadius: Int32(bubbleSettings.mainRadius), bubbleTails: bubbleSettings.hasTails, bubbleWidth: manager.bubbleWidthPercent, chatListAvatar: manager.chatListAvatarPercent, bubbleOpacity: manager.bubbleOpacityPercent, bubbleOutline: manager.bubbleOutlineRGB, customFontName: sgCustomFontName(), hasChatBackground: sgHasChatBackground(), gifOpacity: manager.gifBackgroundOpacityPercent, bubblePadding: manager.bubblePadding)
     }
 
     func isOn(_ toggle: SGToggle) -> Bool {
@@ -329,6 +330,12 @@ private func sgExtrasEntries(state: SGExtrasState) -> [SGExtrasEntry] {
     entries.append(.tweakToggle(662, appearance, "Всегда тёмная клавиатура", .darkKeyboard, state.isOn(.darkKeyboard)))
     entries.append(.tweakToggle(663, appearance, "Скруглённый шрифт", .roundedFont, state.isOn(.roundedFont)))
     entries.append(.tweakToggle(666, appearance, "Скрыть вкладку «Контакты»", .hideContactsTab, state.isOn(.hideContactsTab)))
+    entries.append(.tweakHeader(645, appearance, "ОТСТУПЫ ТЕКСТА В ПУЗЫРЕ"))
+    var paddingId: Int32 = 646
+    for (title, value) in SGExtrasManager.bubblePaddingOptions {
+        entries.append(.roundOption(paddingId, appearance, title, state.bubblePadding == value, 9, value))
+        paddingId += 1
+    }
     entries.append(.tweakHeader(700, appearance, "GIF-ФОН В ЧАТЕ"))
     entries.append(.tweakAction(701, appearance, state.hasChatBackground ? "Заменить GIF или картинку" : "Выбрать GIF или картинку", 3))
     if state.hasChatBackground {
@@ -452,6 +459,8 @@ public func sgExtrasController(context: AccountContext) -> ViewController {
             SGExtrasManager.shared.bubbleOutlineRGB = value
         case 8:
             SGExtrasManager.shared.gifBackgroundOpacityPercent = value
+        case 9:
+            SGExtrasManager.shared.bubblePadding = value
         default:
             sgUpdateBubbleSettings(context: context, refresh: refresh) { settings in
                 settings.mainRadius = Int32(value)

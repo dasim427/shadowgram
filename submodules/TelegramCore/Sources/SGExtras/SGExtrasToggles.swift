@@ -237,3 +237,18 @@ public extension SGExtrasManager {
         }
     }
 }
+
+public extension SGExtrasManager {
+    /// Extra text padding inside bubbles, in points: compact, standard, roomy.
+    static let bubblePaddingOptions: [(String, Int)] = [("Компактно", -3), ("Стандарт", 0), ("Просторно", 4)]
+
+    var bubblePadding: Int {
+        get {
+            let value = AYGSharedDefaults.store.integer(forKey: "SG.bubblePadding")
+            return SGExtrasManager.bubblePaddingOptions.contains(where: { $0.1 == value }) ? value : 0
+        }
+        set {
+            AYGSharedDefaults.store.set(newValue, forKey: "SG.bubblePadding")
+        }
+    }
+}
